@@ -1,4 +1,4 @@
-"""Win32 implementation of :class:`slayerbot.backend.Backend` (ctypes only, no dependencies).
+"""Win32 implementation of :class:`league_bot.backend.Backend` (ctypes only, no dependencies).
 
 Importing this module is safe on any OS; instantiating ``Win32Backend`` is not.
 """
@@ -220,4 +220,4 @@ else:
         """Placeholder so imports work off Windows; it cannot be instantiated."""
 
         def __init__(self) -> None:
-            raise OSError("slayer-bot controls Google Play Games for PC and only runs on Windows")
+            raise OSError("league-bot controls Google Play Games for PC and only runs on Windows")

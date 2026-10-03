@@ -1,4 +1,4 @@
-"""Telegram command handling for slayer-bot.
+"""Telegram command handling for league-bot.
 
 Security model: every command except /id requires the sender's Telegram user id
 to be in ALLOWED_USER_IDS. With an empty list nobody is authorized (fail closed).
@@ -16,7 +16,7 @@ from .game import GameBusy, GameError, SlayerGame
 from .macro import MacroError
 from .telegram_api import TelegramAPI, TelegramError
 
-log = logging.getLogger("slayerbot")
+log = logging.getLogger("league_bot")
 
 COMMANDS: List[Tuple[str, str]] = [
     ("startgame", "Inicia o Slayer Legend e roda a macro de inicio"),
@@ -55,7 +55,7 @@ def parse_command(text: str, bot_username: str = "") -> Optional[Tuple[str, List
     return name.lower(), parts[1:]
 
 
-class SlayerBot:
+class LeagueBot:
     def __init__(self, settings: Settings, api: TelegramAPI, game: SlayerGame,
                  clock: Callable[[], float] = time.time) -> None:
         self._settings = settings

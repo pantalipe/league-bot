@@ -79,7 +79,7 @@ class SlayerGame:
     def _title(self) -> str:
         title = self._settings.window_title.strip()
         if not title:
-            raise GameError("SLAYER_WINDOW_TITLE nao esta configurado. Rode `python -m slayerbot windows` para ver os titulos.")
+            raise GameError("SLAYER_WINDOW_TITLE nao esta configurado. Rode `python -m league_bot windows` para ver os titulos.")
         return title
 
     @contextmanager

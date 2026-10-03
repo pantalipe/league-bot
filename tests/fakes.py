@@ -1,7 +1,7 @@
 """Test doubles shared by the test modules."""
 from __future__ import annotations
 
-from slayerbot.imaging import solid_frame
+from league_bot.imaging import solid_frame
 
 
 class FakeTime:
@@ -20,7 +20,7 @@ class FakeTime:
 
 
 class FakeBackend:
-    """In-memory window backend implementing slayerbot.backend.Backend."""
+    """In-memory window backend implementing league_bot.backend.Backend."""
 
     TITLE = "Slayer Legend"
 

@@ -4,9 +4,9 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-from slayerbot.config import Settings
-from slayerbot.game import GameBusy, GameError, SlayerGame
-from slayerbot.macro import MacroError, MacroRunner
+from league_bot.config import Settings
+from league_bot.game import GameBusy, GameError, SlayerGame
+from league_bot.macro import MacroError, MacroRunner
 from tests.fakes import FakeBackend, FakeTime
 
 

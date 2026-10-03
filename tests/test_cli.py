@@ -6,10 +6,10 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from slayerbot import __main__ as cli
+from league_bot import __main__ as cli
 from tests.fakes import FakeBackend
 
-MISSING_ENV_FILE = Path(tempfile.gettempdir()) / "slayerbot-tests-missing.env"
+MISSING_ENV_FILE = Path(tempfile.gettempdir()) / "league_bot-tests-missing.env"
 BASE_ENV = {"SLAYER_WINDOW_TITLE": "Slayer Legend", "TELEGRAM_TOKEN": "", "ALLOWED_USER_IDS": ""}
 
 

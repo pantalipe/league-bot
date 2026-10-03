@@ -14,10 +14,10 @@ Bot do Telegram para controlar o **Slayer Legend** (Google Play Games para PC) �
 1. Clone o repositório e entre na pasta.
 2. No Telegram, fale com o [@BotFather](https://t.me/BotFather), use `/newbot` e guarde o token.
 3. Copie `.env.example` para `.env` e cole o token em `TELEGRAM_TOKEN`.
-4. Rode `python -m slayerbot run`, mande `/id` para o seu bot e coloque o número que ele responder em `ALLOWED_USER_IDS` (vários IDs separados por vírgula). Reinicie o bot.
-5. Confira tudo com `python -m slayerbot check`.
+4. Rode `python -m league_bot run`, mande `/id` para o seu bot e coloque o número que ele responder em `ALLOWED_USER_IDS` (vários IDs separados por vírgula). Reinicie o bot.
+5. Confira tudo com `python -m league_bot check`.
 
-O título da janela é configurado em `SLAYER_WINDOW_TITLE` e basta conter o texto (no Windows do autor ela aparece como `Slayer Legend - <perfil>`, e o padrão `Slayer Legend` funciona). Se outra janela tiver esse mesmo texto (uma aba do navegador, por exemplo), rode `python -m slayerbot windows` e use o título completo.
+O título da janela é configurado em `SLAYER_WINDOW_TITLE` e basta conter o texto (no Windows do autor ela aparece como `Slayer Legend - <perfil>`, e o padrão `Slayer Legend` funciona). Se outra janela tiver esse mesmo texto (uma aba do navegador, por exemplo), rode `python -m league_bot windows` e use o título completo.
 
 ## Comandos do bot
 
@@ -35,7 +35,7 @@ O título da janela é configurado em `SLAYER_WINDOW_TITLE` e basta conter o tex
 
 ## Linha de comando
 
-`python -m slayerbot <comando>`: `run` (padrão), `check`, `windows`, `status`, `start`, `stop`, `shot [arquivo.png]`, `macro <nome>` e `pixel <x> <y>`. Tudo funciona sem Telegram, o que ajuda a testar macros.
+`python -m league_bot <comando>`: `run` (padrão), `check`, `windows`, `status`, `start`, `stop`, `shot [arquivo.png]`, `macro <nome>` e `pixel <x> <y>`. Tudo funciona sem Telegram, o que ajuda a testar macros.
 
 ## Macros
 
@@ -53,7 +53,7 @@ Uma macro é um JSON com uma lista de passos (veja `macros/start_game.json`). El
 
 Coordenadas podem ser `"center"`, uma porcentagem da área da janela (`"47.8%"`, funciona em qualquer tamanho de janela) ou pixels. Chaves que começam com `_` (como `_comment`) são ignoradas.
 
-**Calibrando:** com o jogo aberto, use `python -m slayerbot shot` para ver a tela e `python -m slayerbot pixel 47.8% 82.5%` para ler a cor de um ponto. Para ajustes só da sua máquina, copie a macro para `macros/local/` (ignorada pelo git): uma macro com o mesmo nome lá tem prioridade.
+**Calibrando:** com o jogo aberto, use `python -m league_bot shot` para ver a tela e `python -m league_bot pixel 47.8% 82.5%` para ler a cor de um ponto. Para ajustes só da sua máquina, copie a macro para `macros/local/` (ignorada pelo git): uma macro com o mesmo nome lá tem prioridade.
 
 Os cliques são reais (o mouse se move), porque o emulador do Play Games ignora cliques "em segundo plano". Use `/cancel` se algo sair do controle.
 
@@ -66,7 +66,7 @@ Os cliques são reais (o mouse se move), porque o emulador do Play Games ignora 
 ## Estrutura
 
 ```
-slayerbot/
+league_bot/
   bot.py           comandos do Telegram e autorização
   telegram_api.py  cliente da Bot API (urllib)
   game.py          iniciar, fechar, status, screenshot

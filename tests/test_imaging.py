@@ -2,7 +2,7 @@ import struct
 import unittest
 import zlib
 
-from slayerbot.imaging import Frame, solid_frame
+from league_bot.imaging import Frame, solid_frame
 
 
 def frame_from_rows(rows):

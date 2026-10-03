@@ -2,13 +2,13 @@ import threading
 import unittest
 from unittest import mock
 
-from slayerbot import bot as bot_module
-from slayerbot.bot import SlayerBot, parse_command
-from slayerbot.config import Settings
-from slayerbot.game import GameBusy, GameError, GameStatus
-from slayerbot.imaging import solid_frame
-from slayerbot.macro import MacroError
-from slayerbot.telegram_api import TelegramError
+from league_bot import bot as bot_module
+from league_bot.bot import LeagueBot, parse_command
+from league_bot.config import Settings
+from league_bot.game import GameBusy, GameError, GameStatus
+from league_bot.imaging import solid_frame
+from league_bot.macro import MacroError
+from league_bot.telegram_api import TelegramError
 
 NOW = 1_800_000_000.0
 OWNER = 111
@@ -24,7 +24,7 @@ class FakeApi:
         self.sent = threading.Event()
 
     def get_me(self):
-        return {"username": "SlayerBot"}
+        return {"username": "League_Bot"}
 
     def set_commands(self, commands):
         self.commands = commands
@@ -90,8 +90,8 @@ class BotTestCase(unittest.TestCase):
         self.api = FakeApi()
         self.game = FakeGame()
         self.settings = Settings(allowed_user_ids=frozenset({OWNER}), max_command_age=300)
-        self.bot = SlayerBot(self.settings, self.api, self.game, clock=lambda: NOW + 5)
-        self.bot._username = "SlayerBot"
+        self.bot = LeagueBot(self.settings, self.api, self.game, clock=lambda: NOW + 5)
+        self.bot._username = "League_Bot"
 
     def last_reply(self):
         return self.api.messages[-1][1]
@@ -100,8 +100,8 @@ class BotTestCase(unittest.TestCase):
 class ParseTests(unittest.TestCase):
     def test_parse_command(self):
         self.assertEqual(parse_command("/macro start_game"), ("macro", ["start_game"]))
-        self.assertEqual(parse_command("/StartGame@SlayerBot", "slayerbot"), ("startgame", []))
-        self.assertIsNone(parse_command("/startgame@OtherBot", "slayerbot"))
+        self.assertEqual(parse_command("/StartGame@League_Bot", "league_bot"), ("startgame", []))
+        self.assertIsNone(parse_command("/startgame@OtherBot", "league_bot"))
         self.assertIsNone(parse_command("just chatting"))
         self.assertIsNone(parse_command(""))
 
@@ -115,7 +115,7 @@ class AuthorizationTests(BotTestCase):
         self.assertEqual(self.api.photos, [])
 
     def test_empty_allowlist_refuses_everyone(self):
-        bot = SlayerBot(Settings(), self.api, self.game, clock=lambda: NOW)
+        bot = LeagueBot(Settings(), self.api, self.game, clock=lambda: NOW)
         bot.handle_update(update("/startgame"))
         self.assertEqual(self.game.calls, [])
 
@@ -131,7 +131,7 @@ class AuthorizationTests(BotTestCase):
         self.assertEqual((self.api.messages, self.game.calls), ([], []))
 
     def test_addressed_command_is_accepted(self):
-        self.bot.handle_update(update("/startgame@slayerbot"))
+        self.bot.handle_update(update("/startgame@league_bot"))
         self.assertEqual(self.game.calls, ["start"])
 
     def test_stale_commands_are_dropped(self):
@@ -140,7 +140,7 @@ class AuthorizationTests(BotTestCase):
         self.assertIn("antiga", self.last_reply())
 
     def test_stale_check_can_be_disabled(self):
-        bot = SlayerBot(Settings(allowed_user_ids=frozenset({OWNER}), max_command_age=0), self.api, self.game, clock=lambda: NOW)
+        bot = LeagueBot(Settings(allowed_user_ids=frozenset({OWNER}), max_command_age=0), self.api, self.game, clock=lambda: NOW)
         bot.handle_update(update("/startgame", date=NOW - 3600))
         self.assertEqual(self.game.calls, ["start"])
 
@@ -199,14 +199,14 @@ class ErrorHandlingTests(BotTestCase):
 
     def test_unexpected_errors_do_not_leak_details(self):
         self.game.error = RuntimeError("secret internal path C:\\Users\\x")
-        with self.assertLogs("slayerbot", level="ERROR"):
+        with self.assertLogs("league_bot", level="ERROR"):
             self.bot.handle_update(update("/stopgame"))
         self.assertNotIn("secret", self.last_reply())
         self.assertIn("Erro inesperado", self.last_reply())
 
     def test_failing_to_reply_does_not_crash_the_handler(self):
         self.api.send_message = mock.Mock(side_effect=TelegramError("offline"))
-        with self.assertLogs("slayerbot", level="WARNING"):
+        with self.assertLogs("league_bot", level="WARNING"):
             self.bot.handle_update(update("/status"))
 
 
@@ -227,7 +227,7 @@ class ServeLoopTests(BotTestCase):
         self.bot.serve_forever(stop)
         self.assertTrue(self.api.sent.wait(2))
         self.assertEqual(self.game.calls, ["status"])
-        self.assertEqual(self.bot._username, "SlayerBot")
+        self.assertEqual(self.bot._username, "League_Bot")
 
     def test_transient_errors_are_retried(self):
         stop = threading.Event()
@@ -241,7 +241,7 @@ class ServeLoopTests(BotTestCase):
             return []
 
         self.api.get_updates = poll
-        with self.assertLogs("slayerbot", level="WARNING"):
+        with self.assertLogs("league_bot", level="WARNING"):
             self.bot.serve_forever(stop)
         self.assertEqual(len(calls), 2)
 

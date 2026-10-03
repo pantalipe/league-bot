@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from slayerbot.config import ConfigError, Settings, load_settings, parse_env_file
+from league_bot.config import ConfigError, Settings, load_settings, parse_env_file
 
 
 class EnvFileTests(unittest.TestCase):

@@ -3,7 +3,7 @@ import json
 import unittest
 import urllib.error
 
-from slayerbot.telegram_api import TelegramAPI, TelegramError
+from league_bot.telegram_api import TelegramAPI, TelegramError
 
 TOKEN = "123456:SECRET-TOKEN"
 

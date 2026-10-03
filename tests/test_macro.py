@@ -2,7 +2,7 @@ import json
 import unittest
 from pathlib import Path
 
-from slayerbot.macro import MacroCancelled, MacroError, MacroRunner, load_macro, resolve_coord, validate_steps
+from league_bot.macro import MacroCancelled, MacroError, MacroRunner, load_macro, resolve_coord, validate_steps
 from tests.fakes import FakeBackend, FakeTime
 
 ROOT = Path(__file__).resolve().parent.parent

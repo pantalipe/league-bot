@@ -1,4 +1,4 @@
-"""Command line entry point: ``python -m slayerbot [run|check|windows|status|start|stop|shot|macro|pixel]``."""
+"""Command line entry point: ``python -m league_bot [run|check|windows|status|start|stop|shot|macro|pixel]``."""
 from __future__ import annotations
 
 import argparse
@@ -13,11 +13,11 @@ from .game import GameError, SlayerGame
 from .macro import MacroError, resolve_coord
 from .telegram_api import TelegramAPI, TelegramError
 
-log = logging.getLogger("slayerbot")
+log = logging.getLogger("league_bot")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="slayerbot", description="Controla o Slayer Legend (Google Play Games) pelo Telegram.")
+    parser = argparse.ArgumentParser(prog="league-bot", description="Controla o Slayer Legend (Google Play Games) pelo Telegram.")
     parser.add_argument("--env-file", type=Path, default=DEFAULT_ENV_FILE, help="caminho do .env (padrao: .env na raiz do repo)")
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("run", help="inicia o bot do Telegram (padrao)")
@@ -110,9 +110,9 @@ def run(args: argparse.Namespace) -> int:
                 print(title)
             return 0
         if command == "run":
-            from .bot import SlayerBot
+            from .bot import LeagueBot
             api = TelegramAPI(settings.require_token())
-            SlayerBot(settings, api, _game(settings)).serve_forever()
+            LeagueBot(settings, api, _game(settings)).serve_forever()
             return 0
         if command == "status":
             st = _game(settings).status()
