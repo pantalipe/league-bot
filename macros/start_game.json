@@ -1,0 +1,22 @@
+{
+  "description": "Abre o Slayer Legend ate a tela inicial, passa pelos avisos e minimiza a janela. Coordenadas em % da area da janela, para funcionar em qualquer tamanho.",
+  "steps": [
+    {"action": "wait_window", "timeout": 60},
+    {"action": "wait_for_pixel", "x": "47.8%", "y": "82.5%", "color": [230, 230, 230], "tolerance": 25, "poll_seconds": 0.4, "timeout": 60,
+      "_comment": "O texto TAP TO START pisca (fase apagada fica em ~90,70,59). Polling curto para pegar a fase acesa."},
+    {"action": "click", "x": "center", "y": "center"},
+    {"action": "click_if_pixel", "x": "31.8%", "y": "78.15%", "color": [237, 138, 0], "tolerance": 20, "poll_seconds": 0.5, "timeout": 20,
+      "_comment": "Botao Confirm do aviso de save (aparece so as vezes, no fluxo celular -> PC). Clica se detectar; senao segue. Ponto em 78.15% (e nao 80.3%) para cair no laranja solido do botao e nao no texto branco."},
+    {"action": "wait", "seconds": 15},
+    {"action": "click", "x": "center", "y": "center"},
+    {"action": "wait", "seconds": 15},
+    {"action": "click", "x": "center", "y": "center"},
+    {"action": "wait", "seconds": 15},
+    {"action": "click", "x": "center", "y": "center"},
+    {"action": "wait", "seconds": 15},
+    {"action": "click", "x": "center", "y": "center"},
+    {"action": "move_resize", "width": 438, "height": 814,
+      "_comment": "Deixa a janela em formato de celular (retrato) para os screenshots. Ajuste se sua tela for menor; x/y opcionais fixam a posicao."},
+    {"action": "minimize"}
+  ]
+}
