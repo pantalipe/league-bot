@@ -1,4 +1,4 @@
-# slayer-bot
+# league-bot
 
 Bot do Telegram para controlar o **Slayer Legend** (Google Play Games para PC) à distância: iniciar o jogo (passando sozinho pelas telas iniciais), fechar e tirar screenshot da janela. Projeto aberto, feito para a guild — **sem dependências**, só Python.
 
