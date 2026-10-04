@@ -35,7 +35,7 @@ O título da janela é configurado em `SLAYER_WINDOW_TITLE` e basta conter o tex
 
 ## Linha de comando
 
-`python -m league_bot <comando>`: `run` (padrão), `check`, `windows`, `status`, `start`, `stop`, `shot [arquivo.png]`, `macro <nome>` e `pixel <x> <y>`. Tudo funciona sem Telegram, o que ajuda a testar macros.
+`python -m league_bot <comando>`: `run` (padrão), `check`, `windows`, `status`, `start`, `stop`, `shot [arquivo.png]`, `macro <nome>`, `pixel <x> <y>`, `record <nome>`, `macros`, `show <nome>`, `rename <antigo> <novo>` e `delete <nome>`. Tudo funciona sem Telegram, o que ajuda a testar macros.
 
 ## Macros
 
@@ -57,6 +57,25 @@ Coordenadas podem ser `"center"`, uma porcentagem da área da janela (`"47.8%"`,
 
 Os cliques são reais (o mouse se move), porque o emulador do Play Games ignora cliques "em segundo plano". Use `/cancel` se algo sair do controle.
 
+## Gravando macros
+
+Em vez de escrever o JSON à mão, grave a quest jogando:
+
+```
+python -m league_bot record minha_quest -d "Daily 1" -t daily
+```
+
+1. Com o jogo aberto, rode o comando e, durante a contagem de 3 segundos, vá para a janela do jogo.
+2. Jogue normalmente. Cada clique dado na janela do jogo é gravado, junto com a espera entre eles. Cliques fora da janela são ignorados.
+3. Aperte **F10** (ou `Ctrl+C` no terminal) para terminar. A macro é salva em `macros/local/minha_quest.json`.
+
+Depois, `python -m league_bot macro minha_quest` repete tudo. `python -m league_bot macros` lista as macros (compartilhadas e suas), `show <nome>` mostra os passos numerados para você editar o arquivo à mão, e `rename` e `delete` mexem só nas macros locais.
+
+- Cada clique grava também a cor do ponto clicado. Na repetição, o bot espera o tempo gravado e depois espera essa cor aparecer antes de clicar, então um carregamento mais lento do que o da gravação não faz o clique cair na tela errada. Se um botão pisca ou muda de cor, grave com `--no-anchor` (cliques sem checagem de cor) ou edite o JSON.
+- Arrastar e segurar ainda não são suportados: esses gestos são ignorados e o comando avisa quantos foram.
+- Outras opções: `--stop-key F9`, `--delay 5`, `--max-seconds 600` e `--force` (sobrescreve uma macro local de mesmo nome).
+- A gravação vale para qualquer tamanho de janela, porque as posições são salvas em porcentagem.
+
 ## Segurança
 
 - Só quem está em `ALLOWED_USER_IDS` consegue usar o bot. Lista vazia significa que ninguém é autorizado.
@@ -71,6 +90,8 @@ league_bot/
   telegram_api.py  cliente da Bot API (urllib)
   game.py          iniciar, fechar, status, screenshot
   macro.py         validação e execução das macros
+  recorder.py      gravação de cliques em macros
+  library.py       macros compartilhadas e locais
   winapi.py        Windows: janelas, captura e cliques (ctypes)
   backend.py       interface que o winapi implementa
   imaging.py       pixels e PNG sem Pillow

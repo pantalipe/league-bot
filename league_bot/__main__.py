@@ -1,16 +1,19 @@
-"""Command line entry point: ``python -m league_bot [run|check|windows|status|start|stop|shot|macro|pixel]``."""
+"""Command line entry point: ``python -m league_bot <command>`` (see ``--help``)."""
 from __future__ import annotations
 
 import argparse
 import logging
 import logging.handlers
 import sys
+import time
 from pathlib import Path
 from typing import List, Optional
 
 from .config import DEFAULT_ENV_FILE, ConfigError, Settings, load_settings
 from .game import GameError, SlayerGame
+from .library import LibraryError, MacroLibrary
 from .macro import MacroError, resolve_coord
+from .recorder import Recorder, RecorderError, vk_from_name
 from .telegram_api import TelegramAPI, TelegramError
 
 log = logging.getLogger("league_bot")
@@ -33,6 +36,25 @@ def build_parser() -> argparse.ArgumentParser:
     pixel = sub.add_parser("pixel", help="mostra a cor de um ponto da janela (para calibrar macros)")
     pixel.add_argument("x", help="coordenada x: 'center', 'NN%%' ou pixels")
     pixel.add_argument("y", help="coordenada y: 'center', 'NN%%' ou pixels")
+
+    record = sub.add_parser("record", help="grava seus cliques na janela do jogo como uma nova macro")
+    record.add_argument("name", help="nome da macro (letras, numeros, '_' e '-')")
+    record.add_argument("-d", "--description", default="", help="descricao curta")
+    record.add_argument("-t", "--tag", action="append", default=[], help="tag (pode repetir)")
+    record.add_argument("--no-anchor", action="store_true", help="nao grava a cor de cada clique (cliques 'cegos')")
+    record.add_argument("--force", action="store_true", help="sobrescreve uma macro com o mesmo nome")
+    record.add_argument("--stop-key", default="F10", help="tecla que termina a gravacao, F1 a F12 (padrao F10)")
+    record.add_argument("--delay", type=float, default=3.0, help="segundos de contagem antes de comecar (padrao 3)")
+    record.add_argument("--max-seconds", type=float, default=900.0, help="duracao maxima da gravacao (padrao 900)")
+
+    sub.add_parser("macros", help="lista as macros (compartilhadas e locais)")
+    show = sub.add_parser("show", help="mostra os passos de uma macro")
+    show.add_argument("name")
+    rename = sub.add_parser("rename", help="renomeia uma macro local")
+    rename.add_argument("old")
+    rename.add_argument("new")
+    delete = sub.add_parser("delete", help="apaga uma macro local")
+    delete.add_argument("name")
     return parser
 
 
@@ -93,6 +115,77 @@ def cmd_pixel(settings: Settings, x_spec: str, y_spec: str) -> int:
     return 0
 
 
+def cmd_record(settings: Settings, args: argparse.Namespace) -> int:
+    library = MacroLibrary(settings.macros_dir)
+    library.check_name(args.name)
+    if library.find(args.name) is not None and not args.force:
+        raise LibraryError(f"Ja existe uma macro chamada '{args.name}'. Escolha outro nome ou use --force.")
+    if not settings.window_title:
+        raise GameError("SLAYER_WINDOW_TITLE nao esta configurado. Rode `python -m league_bot windows` para ver os titulos.")
+    stop_vk = vk_from_name(args.stop_key)
+    backend = _backend()
+    if backend.find_window(settings.window_title) is None:
+        raise GameError(f"Janela '{settings.window_title}' nao encontrada: abra o jogo antes de gravar.")
+
+    recorder = Recorder(
+        backend, settings.window_title, anchors=not args.no_anchor, stop_vk=stop_vk,
+        max_seconds=args.max_seconds, log=print,
+    )
+    stop_key = args.stop_key.upper()
+    print(f"Vou gravar os cliques que voce der na janela do jogo. Para terminar: {stop_key} (ou Ctrl+C aqui).")
+    seconds = int(args.delay)
+    while seconds > 0:
+        print(f"Comecando em {seconds}... (va para a janela do jogo)")
+        time.sleep(1)
+        seconds -= 1
+    print("GRAVANDO. Jogue normalmente.")
+    recording = recorder.record()
+    print("Gravacao encerrada.")
+
+    for warning in recording.warnings:
+        print(f"aviso: {warning}")
+    if recording.skipped_gestures:
+        print(f"aviso: {recording.skipped_gestures} gesto(s) de arrastar/segurar foram ignorados (ainda nao suportados).")
+    if recording.clicks == 0:
+        print("Nenhum clique gravado; nada foi salvo.")
+        return 1
+    path = library.save(
+        args.name, recording.steps, description=args.description, tags=args.tag,
+        window=recording.window_size, overwrite=args.force,
+    )
+    print(f"Macro '{args.name}' salva: {recording.clicks} clique(s) em {recording.duration:.0f}s -> {path}")
+    print(f"Para rodar: python -m league_bot macro {args.name}")
+    return 0
+
+
+def cmd_macros(settings: Settings) -> int:
+    infos = MacroLibrary(settings.macros_dir).list()
+    if not infos:
+        print("Nenhuma macro.")
+        return 0
+    width = max(len(info.name) for info in infos)
+    print(f"{'NOME':<{width}}  {'ORIGEM':<8} {'PASSOS':>6}  DESCRICAO")
+    for info in infos:
+        text = f"[ERRO] {info.error}" if info.error else info.description
+        if info.tags:
+            text = f"{text} [{', '.join(info.tags)}]".strip()
+        print(f"{info.name:<{width}}  {info.source:<8} {info.steps:>6}  {text}".rstrip())
+    return 0
+
+
+def cmd_show(settings: Settings, name: str) -> int:
+    library = MacroLibrary(settings.macros_dir)
+    steps = library.load_steps(name)
+    info = next(i for i in library.list() if i.name == name)
+    print(f"{name} ({info.source}) - {info.path}")
+    if info.description:
+        print(info.description)
+    for number, step in enumerate(steps, 1):
+        params = " ".join(f"{key}={value}" for key, value in step.items() if key not in ("action", "_comment"))
+        print(f"{number:>3}. {step['action']} {params}".rstrip())
+    return 0
+
+
 def run(args: argparse.Namespace) -> int:
     command = args.command or "run"
     try:
@@ -135,10 +228,24 @@ def run(args: argparse.Namespace) -> int:
             return 0
         if command == "pixel":
             return cmd_pixel(settings, args.x, args.y)
+        if command == "record":
+            return cmd_record(settings, args)
+        if command == "macros":
+            return cmd_macros(settings)
+        if command == "show":
+            return cmd_show(settings, args.name)
+        if command == "rename":
+            path = MacroLibrary(settings.macros_dir).rename(args.old, args.new)
+            print(f"'{args.old}' renomeada para '{args.new}' ({path})")
+            return 0
+        if command == "delete":
+            MacroLibrary(settings.macros_dir).delete(args.name)
+            print(f"Macro '{args.name}' apagada.")
+            return 0
     except KeyboardInterrupt:
         print("\nEncerrado.")
         return 0
-    except (ConfigError, GameError, MacroError, TelegramError, OSError) as exc:
+    except (ConfigError, GameError, MacroError, LibraryError, RecorderError, TelegramError, OSError) as exc:
         print(f"Erro: {exc}", file=sys.stderr)
         return 1
     return 0
