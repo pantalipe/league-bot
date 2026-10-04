@@ -4,7 +4,6 @@ from __future__ import annotations
 import csv
 import io
 import os
-import re
 import subprocess
 import threading
 import time
@@ -16,9 +15,9 @@ from typing import Callable, Iterator, List, Optional
 from .backend import Backend
 from .config import Settings
 from .imaging import Frame
-from .macro import MacroRunner, Step, load_macro
+from .library import LibraryError, MacroLibrary
+from .macro import MacroRunner, Step
 
-_MACRO_NAME = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
@@ -73,6 +72,7 @@ class SlayerGame:
         self._busy = threading.Lock()
         self._runner: Optional[MacroRunner] = None
         self._runner_guard = threading.Lock()
+        self._library = MacroLibrary(settings.macros_dir)
 
     # -- helpers ---------------------------------------------------------------
 
@@ -101,26 +101,14 @@ class SlayerGame:
             with self._runner_guard:
                 self._runner = None
 
-    def _macro_dirs(self) -> List[Path]:
-        # macros/local/ (gitignored) overrides the shared macros, for per-machine calibration.
-        return [self._settings.macros_dir / "local", self._settings.macros_dir]
-
     def list_macros(self) -> List[str]:
-        names = set()
-        for directory in self._macro_dirs():
-            if directory.is_dir():
-                names.update(p.stem for p in directory.glob("*.json") if _MACRO_NAME.match(p.stem))
-        return sorted(names)
+        return self._library.names()
 
     def load_macro_steps(self, name: str) -> List[Step]:
-        if not _MACRO_NAME.match(name):
-            raise GameError("Nome de macro invalido (use letras, numeros, '_' e '-').")
-        for directory in self._macro_dirs():
-            path = directory / f"{name}.json"
-            if path.is_file():
-                return load_macro(path)
-        available = ", ".join(self.list_macros()) or "(nenhuma)"
-        raise GameError(f"Macro '{name}' nao existe. Disponiveis: {available}")
+        try:
+            return self._library.load_steps(name)
+        except LibraryError as exc:
+            raise GameError(str(exc)) from None
 
     # -- queries ---------------------------------------------------------------
 

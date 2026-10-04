@@ -53,6 +53,11 @@ class LoadSettingsTests(unittest.TestCase):
             with self.subTest(env=env), self.assertRaises(ConfigError):
                 load_settings(environ=env, env_file=None)
 
+    def test_macros_dir_can_be_overridden(self):
+        s = load_settings(environ={"SLAYER_MACROS_DIR": "some/where"}, env_file=None)
+        self.assertEqual(s.macros_dir, Path("some/where"))
+        self.assertEqual(load_settings(environ={}, env_file=None).macros_dir.name, "macros")
+
     def test_bool_parsing(self):
         self.assertFalse(load_settings(environ={"SLAYER_FOREGROUND_INPUT": "off"}, env_file=None).foreground_input)
         self.assertTrue(load_settings(environ={"SLAYER_FOREGROUND_INPUT": "YES"}, env_file=None).foreground_input)
