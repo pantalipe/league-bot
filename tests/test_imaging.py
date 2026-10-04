@@ -72,6 +72,17 @@ class FrameTests(unittest.TestCase):
         self.assertEqual(struct.unpack("<ii", bmp[18:26]), (5, 2))
         self.assertEqual(len(bmp), 54 + 16 * 2)
 
+    def test_average_of_a_patch_is_clipped_at_the_edges(self):
+        rows = [[(0, 0, 0), (100, 100, 100), (200, 200, 200)] for _ in range(3)]
+        frame = frame_from_rows(rows)
+        self.assertEqual(frame.average(1, 1, radius=1), (100, 100, 100))
+        self.assertEqual(frame.average(0, 0, radius=1), (50, 50, 50))  # only columns 0-1 exist
+        self.assertEqual(frame.average(1, 1, radius=0), (100, 100, 100))
+
+    def test_average_outside_the_frame_is_none(self):
+        self.assertIsNone(solid_frame(4, 4, (1, 2, 3)).average(9, 9))
+        self.assertEqual(solid_frame(4, 4, (1, 2, 3)).average(3, 3), (1, 2, 3))
+
     def test_rejects_short_buffer_and_bad_dimensions(self):
         with self.assertRaises(ValueError):
             Frame(10, 10, b"\x00" * 10)

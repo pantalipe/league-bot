@@ -8,6 +8,7 @@ import sys
 import time
 from typing import List, Optional, Tuple
 
+from .backend import InputSample
 from .imaging import Frame
 
 IS_WINDOWS = sys.platform == "win32"
@@ -23,6 +24,8 @@ _SWP_NOACTIVATE = 0x0010
 _MOUSEEVENTF_LEFTDOWN = 0x0002
 _MOUSEEVENTF_LEFTUP = 0x0004
 _DWMWA_CLOAKED = 14
+_VK_LBUTTON = 0x01
+_GA_ROOT = 2
 
 if IS_WINDOWS:
     import ctypes
@@ -71,6 +74,11 @@ if IS_WINDOWS:
             u.SetCursorPos.argtypes = [ctypes.c_int, ctypes.c_int]
             u.mouse_event.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, ctypes.c_size_t]
             u.ShowWindow.argtypes = [hwnd, ctypes.c_int]
+            u.GetAsyncKeyState.restype, u.GetAsyncKeyState.argtypes = ctypes.c_short, [ctypes.c_int]
+            u.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
+            u.ScreenToClient.argtypes = [hwnd, ctypes.POINTER(wintypes.POINT)]
+            u.WindowFromPoint.restype, u.WindowFromPoint.argtypes = hwnd, [wintypes.POINT]
+            u.GetAncestor.restype, u.GetAncestor.argtypes = hwnd, [hwnd, wintypes.UINT]
             u.SetWindowPos.argtypes = [hwnd, hwnd, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.UINT]
             g.CreateCompatibleDC.restype, g.CreateCompatibleDC.argtypes = hdc, [hdc]
             g.CreateCompatibleBitmap.restype = wintypes.HBITMAP
@@ -205,6 +213,21 @@ if IS_WINDOWS:
 
         def is_minimized(self, hwnd: int) -> bool:
             return bool(self._u.IsIconic(hwnd))
+
+        # -- recording ---------------------------------------------------------
+
+        def poll_input(self, hwnd: int, stop_vk: int) -> InputSample:
+            """Polled instead of hooked: no message loop, no extra threads, no dependencies."""
+            point = wintypes.POINT()
+            self._u.GetCursorPos(ctypes.byref(point))
+            # The root-window check keeps clicks that land on a window covering the game out.
+            over_window = self._u.GetAncestor(self._u.WindowFromPoint(point), _GA_ROOT) == hwnd
+            self._u.ScreenToClient(hwnd, ctypes.byref(point))
+            width, height = self.client_size(hwnd)
+            inside = bool(over_window) and 0 <= point.x < width and 0 <= point.y < height
+            left_down = bool(self._u.GetAsyncKeyState(_VK_LBUTTON) & 0x8000)
+            stop = bool(stop_vk) and bool(self._u.GetAsyncKeyState(stop_vk) & 0x8000)
+            return InputSample(point.x, point.y, inside, left_down, stop)
 
         def move_resize(self, hwnd: int, x: Optional[int], y: Optional[int], width: int, height: int) -> None:
             if x is None or y is None:

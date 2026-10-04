@@ -39,6 +39,23 @@ class Frame:
         b, g, r = self.bgr[offset], self.bgr[offset + 1], self.bgr[offset + 2]
         return (r, g, b)
 
+    def average(self, x: int, y: int, radius: int = 2) -> Optional[RGB]:
+        """Mean color of the (2*radius+1)^2 patch around (x, y), clipped to the frame.
+
+        More stable than a single pixel: anti-aliased edges and slight glows average out.
+        """
+        if self.pixel(x, y) is None:
+            return None
+        totals = [0, 0, 0]
+        count = 0
+        for yy in range(max(0, y - radius), min(self.height, y + radius + 1)):
+            for xx in range(max(0, x - radius), min(self.width, x + radius + 1)):
+                pixel = self.pixel(xx, yy)
+                for channel in range(3):
+                    totals[channel] += pixel[channel]
+                count += 1
+        return (round(totals[0] / count), round(totals[1] / count), round(totals[2] / count))
+
     def to_png(self) -> bytes:
         """Encode as an 8-bit RGB PNG using only zlib/struct."""
         row_bytes = self.width * 3
