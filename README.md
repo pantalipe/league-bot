@@ -46,7 +46,7 @@ Uma macro é um JSON com uma lista de passos (veja `macros/start_game.json`). El
 | `wait_window` | `timeout` (s, padrão 30) |
 | `wait` | `seconds` |
 | `click` | `x`, `y` |
-| `wait_for_pixel` | `x`, `y`, `color` `[R,G,B]`, `tolerance`, `poll_seconds`, `timeout` — falha se a cor não aparecer |
+| `wait_for_pixel` | `x`, `y`, `color` `[R,G,B]`, `tolerance`, `radius` (compara a média de uma área em volta do ponto, em vez de um pixel só), `poll_seconds`, `timeout` — falha se a cor não aparecer |
 | `click_if_pixel` | igual ao anterior, mas clica onde achou a cor e segue sem erro se não achar |
 | `move_resize` | `width`, `height`, `x` e `y` opcionais |
 | `minimize` | — |
@@ -71,9 +71,9 @@ python -m league_bot record minha_quest -d "Daily 1" -t daily
 
 Depois, `python -m league_bot macro minha_quest` repete tudo. `python -m league_bot macros` lista as macros (compartilhadas e suas), `show <nome>` mostra os passos numerados para você editar o arquivo à mão, e `rename` e `delete` mexem só nas macros locais.
 
-- Cada clique grava também a cor do ponto clicado. Na repetição, o bot espera o tempo gravado e depois espera essa cor aparecer antes de clicar, então um carregamento mais lento do que o da gravação não faz o clique cair na tela errada. Se um botão pisca ou muda de cor, grave com `--no-anchor` (cliques sem checagem de cor) ou edite o JSON.
+- Por padrão a macro guarda só a posição de cada clique e a espera entre eles. Com `--anchor`, cada clique grava também a cor do ponto, e na repetição o bot espera essa cor aparecer antes de clicar (útil se o carregamento do jogo varia). Em botões que piscam ou têm animação a espera pode estourar o tempo, então use só quando fizer sentido. Você também pode acrescentar `wait_for_pixel` à mão.
 - Arrastar e segurar ainda não são suportados: esses gestos são ignorados e o comando avisa quantos foram.
-- Outras opções: `--stop-key F9`, `--delay 5`, `--max-seconds 600` e `--force` (sobrescreve uma macro local de mesmo nome).
+- Outras opções: `--anchor`, `--stop-key F9`, `--delay 5`, `--max-seconds 600` e `--force` (sobrescreve uma macro local de mesmo nome).
 - A gravação vale para qualquer tamanho de janela, porque as posições são salvas em porcentagem.
 
 ## Segurança

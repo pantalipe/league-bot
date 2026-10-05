@@ -131,9 +131,11 @@ class MacroCommandTests(unittest.TestCase):
         self.assertEqual(FakeRecorder.seen["title"], "Slayer Legend")
 
     def test_record_options_reach_the_recorder(self):
-        self.record("--no-anchor", "--stop-key", "f9", "--max-seconds", "60")
+        self.record("--anchor", "--stop-key", "f9", "--max-seconds", "60")
         self.assertEqual((FakeRecorder.seen["anchors"], FakeRecorder.seen["stop_vk"], FakeRecorder.seen["max_seconds"]),
-                         (False, 0x78, 60.0))
+                         (True, 0x78, 60.0))
+        self.record("--force")
+        self.assertFalse(FakeRecorder.seen["anchors"])  # plain clicks and waits unless asked otherwise
 
     def test_nothing_recorded_saves_nothing(self):
         FakeRecorder.result = Recording([{"action": "wait_window"}], 0, 0, 3.0, (400, 800))

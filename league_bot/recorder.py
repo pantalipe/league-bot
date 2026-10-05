@@ -1,8 +1,9 @@
 """Macro recorder: turns real mouse clicks on the game window into a macro.
 
 The mouse is polled through the backend (no hooks, no dependencies). Every tap
-becomes ``[wait] [wait_for_pixel] click`` steps in the same JSON format that
-hand-written macros use, so recorded macros can be edited and shared like any other.
+becomes ``[wait] click`` steps (plus a ``wait_for_pixel`` before each click when
+``anchors`` is on) in the same JSON format that hand-written macros use, so
+recorded macros can be edited and shared like any other.
 """
 from __future__ import annotations
 
@@ -71,7 +72,7 @@ class Recorder:
         backend: Backend,
         title: str,
         *,
-        anchors: bool = True,
+        anchors: bool = False,
         stop_vk: int = DEFAULT_STOP_VK,
         poll_interval: float = 0.005,
         capture_interval: float = 0.15,
@@ -141,7 +142,7 @@ class Recorder:
         prev_down = True  # a button already held when recording starts is ignored until released
         done = threading.Event()
         worker = None
-        if self._background:
+        if self._background and self._anchors:
             worker = threading.Thread(target=self._frame_loop, args=(done,), daemon=True)
             worker.start()
         start = end = self._clock()
@@ -158,14 +159,15 @@ class Recorder:
                 sample = self._backend.poll_input(hwnd, self._stop_vk)
                 if sample.stop_pressed:
                     break
-                if (not self._background and not sample.left_down and sample.inside
+                if (self._anchors and not self._background and not sample.left_down and sample.inside
                         and now - last_capture >= self._capture_interval):
                     self._grab()
                     last_capture = now
                 if sample.left_down and not prev_down and sample.inside:
                     width, height = self._backend.client_size(hwnd)
                     # The color comes from the latest frame, taken before this press changed the screen.
-                    press = _Press(now, sample.x, sample.y, width, height, self._color_at(sample.x, sample.y))
+                    color = self._color_at(sample.x, sample.y) if self._anchors else None
+                    press = _Press(now, sample.x, sample.y, width, height, color)
                 elif sample.left_down and press is not None:
                     press.travel = max(press.travel, math.hypot(sample.x - press.x, sample.y - press.y))
                 elif not sample.left_down and press is not None:

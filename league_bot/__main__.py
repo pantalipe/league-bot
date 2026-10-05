@@ -41,7 +41,8 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("name", help="nome da macro (letras, numeros, '_' e '-')")
     record.add_argument("-d", "--description", default="", help="descricao curta")
     record.add_argument("-t", "--tag", action="append", default=[], help="tag (pode repetir)")
-    record.add_argument("--no-anchor", action="store_true", help="nao grava a cor de cada clique (cliques 'cegos')")
+    record.add_argument("--anchor", action="store_true",
+                        help="grava tambem a cor de cada clique e, ao repetir, espera essa cor aparecer antes de clicar (opcional)")
     record.add_argument("--force", action="store_true", help="sobrescreve uma macro com o mesmo nome")
     record.add_argument("--stop-key", default="F10", help="tecla que termina a gravacao, F1 a F12 (padrao F10)")
     record.add_argument("--delay", type=float, default=3.0, help="segundos de contagem antes de comecar (padrao 3)")
@@ -128,7 +129,7 @@ def cmd_record(settings: Settings, args: argparse.Namespace) -> int:
         raise GameError(f"Janela '{settings.window_title}' nao encontrada: abra o jogo antes de gravar.")
 
     recorder = Recorder(
-        backend, settings.window_title, anchors=not args.no_anchor, stop_vk=stop_vk,
+        backend, settings.window_title, anchors=args.anchor, stop_vk=stop_vk,
         max_seconds=args.max_seconds, log=print,
     )
     stop_key = args.stop_key.upper()

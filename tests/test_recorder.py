@@ -26,8 +26,8 @@ def record(presses, stop_at=6.0, backend=None, sleep_hook=None, **kwargs):
 
 
 class StepGenerationTests(unittest.TestCase):
-    def test_taps_become_wait_anchor_and_click_steps(self):
-        recording, _, _ = record(TWO_TAPS)
+    def test_with_anchors_taps_become_wait_anchor_and_click_steps(self):
+        recording, _, _ = record(TWO_TAPS, anchors=True)
         actions = [s["action"] for s in recording.steps]
         self.assertEqual(actions, ["wait_window", "wait_for_pixel", "click", "wait", "wait_for_pixel", "click"])
         self.assertEqual(recording.clicks, 2)
@@ -36,7 +36,7 @@ class StepGenerationTests(unittest.TestCase):
         self.assertAlmostEqual(wait, 3.0 - 0.4, places=1)  # recorded gap minus the replayed click's own duration
 
     def test_anchor_carries_the_color_seen_before_the_click(self):
-        recording, _, _ = record(TWO_TAPS)
+        recording, _, _ = record(TWO_TAPS, anchors=True)
         anchors = [s for s in recording.steps if s["action"] == "wait_for_pixel"]
         self.assertTrue(all(a["color"] == [10, 10, 10] for a in anchors))
         self.assertTrue(all(a["radius"] == 2 for a in anchors))
@@ -47,21 +47,22 @@ class StepGenerationTests(unittest.TestCase):
         frame = frame_from_rows(rows)
         backend = FakeBackend(size=(20, 20))
         backend.capture = lambda hwnd: frame
-        recording, _, _ = record([(1.0, 1.08, 10, 10)], stop_at=3.0, backend=backend)
+        recording, _, _ = record([(1.0, 1.08, 10, 10)], stop_at=3.0, backend=backend, anchors=True)
         self.assertEqual([s["color"] for s in recording.steps if s["action"] == "wait_for_pixel"], [[80, 80, 80]])
         replay, clock = FakeBackend(size=(20, 20)), FakeTime()
         replay.capture = lambda hwnd: frame
         MacroRunner(replay, TITLE, True, sleep=clock.sleep, clock=clock.clock).run(recording.steps)
         self.assertEqual(replay.clicks(), [(10, 10, True)])
 
-    def test_no_anchor_mode_emits_blind_clicks_only(self):
-        recording, _, _ = record(TWO_TAPS, anchors=False)
-        self.assertNotIn("wait_for_pixel", [s["action"] for s in recording.steps])
+    def test_default_is_just_waits_and_clicks_and_never_captures_the_screen(self):
+        recording, backend, _ = record(TWO_TAPS)
+        self.assertEqual([s["action"] for s in recording.steps], ["wait_window", "click", "wait", "click"])
+        self.assertNotIn(("capture",), backend.calls)
 
     def test_clicks_without_a_frame_still_record_but_have_no_anchor(self):
         backend = FakeBackend()
         backend.capture = lambda hwnd: None
-        recording, _, _ = record(TWO_TAPS, backend=backend)
+        recording, _, _ = record(TWO_TAPS, backend=backend, anchors=True)
         self.assertEqual(recording.clicks, 2)
         self.assertNotIn("wait_for_pixel", [s["action"] for s in recording.steps])
 
@@ -70,7 +71,7 @@ class StepGenerationTests(unittest.TestCase):
         self.assertEqual([s["action"] for s in recording.steps], ["wait_window", "click", "click"])
 
     def test_recording_replays_to_the_same_pixels(self):
-        recording, _, _ = record(TWO_TAPS)
+        recording, _, _ = record(TWO_TAPS, anchors=True)
         validate_steps(recording.steps)
         backend, clock = FakeBackend(), FakeTime()
         MacroRunner(backend, TITLE, True, sleep=clock.sleep, clock=clock.clock).run(recording.steps)
@@ -160,7 +161,7 @@ class BackgroundCaptureTests(unittest.TestCase):
         backend = FakeBackend()
         origin = time.monotonic()
         backend.input_fn = ScriptedMouse(lambda: time.monotonic() - origin, [(0.3, 0.38, 200, 400)], stop_at=0.6)
-        recording = Recorder(backend, TITLE, capture_interval=0.05).record()
+        recording = Recorder(backend, TITLE, anchors=True, capture_interval=0.05).record()
         self.assertEqual(recording.clicks, 1)
         anchors = [s for s in recording.steps if s["action"] == "wait_for_pixel"]
         self.assertEqual([a["color"] for a in anchors], [[10, 10, 10]])
