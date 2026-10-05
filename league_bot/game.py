@@ -7,16 +7,17 @@ import os
 import subprocess
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator, List, Optional
+from typing import Any, Callable, ContextManager, Iterator, List, Optional, Sequence, Tuple
 
-from .backend import Backend
+from .backend import Backend, GuardedBackend
 from .config import Settings
 from .imaging import Frame
 from .library import LibraryError, MacroLibrary
 from .macro import MacroRunner, Step
+from .recorder import DEFAULT_STOP_VK, Recorder
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -34,6 +35,20 @@ class GameStatus:
     running: bool
     window_found: bool
     busy: bool
+    recording: bool = False
+
+
+@dataclass(frozen=True)
+class RecordingResult:
+    """Outcome of a background recording; ``error`` is set when nothing was saved."""
+
+    name: str
+    path: Optional[Path]
+    clicks: int
+    skipped_gestures: int
+    duration: float
+    warnings: Tuple[str, ...] = ()
+    error: str = ""
 
 
 def _default_launcher(settings: Settings) -> None:
@@ -61,6 +76,8 @@ class SlayerGame:
         runner_factory: Callable = _default_runner,
         sleep: Callable[[float], None] = time.sleep,
         log: Optional[Callable[[str], None]] = None,
+        recorder_factory: Callable = Recorder,
+        input_guard: Optional[Callable[[], ContextManager[Any]]] = None,
     ) -> None:
         self._settings = settings
         self._backend = backend
@@ -73,8 +90,15 @@ class SlayerGame:
         self._runner: Optional[MacroRunner] = None
         self._runner_guard = threading.Lock()
         self._library = MacroLibrary(settings.macros_dir)
+        self._recorder_factory = recorder_factory
+        self._input_guard = input_guard  # context manager entered around real mouse input
+        self._recorder: Optional[Recorder] = None
 
     # -- helpers ---------------------------------------------------------------
+
+    @property
+    def library(self) -> MacroLibrary:
+        return self._library
 
     def _title(self) -> str:
         title = self._settings.window_title.strip()
@@ -92,7 +116,8 @@ class SlayerGame:
             self._busy.release()
 
     def _run_steps(self, steps: List[Step], name: str, title: str) -> None:
-        runner = self._runner_factory(self._backend, title, self._settings.foreground_input, self._log)
+        backend = GuardedBackend(self._backend, self._input_guard) if self._input_guard else self._backend
+        runner = self._runner_factory(backend, title, self._settings.foreground_input, self._log)
         with self._runner_guard:
             self._runner = runner
         try:
@@ -128,7 +153,10 @@ class SlayerGame:
     def status(self) -> GameStatus:
         title = self._settings.window_title.strip()
         window = bool(title) and self._backend.find_window(title) is not None
-        return GameStatus(running=self.is_running(), window_found=window, busy=self._busy.locked())
+        return GameStatus(
+            running=self.is_running(), window_found=window, busy=self._busy.locked(),
+            recording=self._recorder is not None,
+        )
 
     # -- actions ---------------------------------------------------------------
 
@@ -149,6 +177,92 @@ class SlayerGame:
         with self._exclusive():
             self._run_steps(steps, name, title)
         return f"Macro '{name}' concluida."
+
+    def start_recording(
+        self,
+        name: str,
+        *,
+        anchors: bool = False,
+        stop_vk: int = DEFAULT_STOP_VK,
+        description: str = "",
+        tags: Sequence[str] = (),
+        overwrite: bool = False,
+        max_seconds: float = 900.0,
+        on_done: Optional[Callable[[RecordingResult], None]] = None,
+    ) -> None:
+        """Record the user's clicks in the background into a local macro.
+
+        Returns right away. Recording ends on the stop key, ``stop_recording()`` or the time
+        limit, and ``on_done`` then receives the result. The game is busy meanwhile.
+        """
+        title = self._title()
+        try:
+            self._library.check_name(name)
+            if self._library.find(name) is not None and not overwrite:
+                raise LibraryError(f"Ja existe uma macro chamada '{name}'. Escolha outro nome ou use force.")
+        except LibraryError as exc:
+            raise GameError(str(exc)) from None
+        if self._backend.find_window(title) is None:
+            raise GameError("Janela do jogo nao encontrada (o jogo esta rodando?).")
+        if not self._busy.acquire(blocking=False):
+            raise GameBusy("Ja existe uma operacao em andamento (use /cancel para abortar).")
+        try:
+            recorder = self._recorder_factory(
+                self._backend, title, anchors=anchors, stop_vk=stop_vk, max_seconds=max_seconds, log=self._log,
+            )
+            with self._runner_guard:
+                self._recorder = recorder
+            threading.Thread(
+                target=self._record_worker, name="league-recorder", daemon=True,
+                args=(recorder, name, description, tuple(tags), overwrite, on_done),
+            ).start()
+        except BaseException:
+            with self._runner_guard:
+                self._recorder = None
+            self._busy.release()
+            raise
+
+    def _record_worker(self, recorder, name, description, tags, overwrite, on_done) -> None:
+        guard = self._input_guard or nullcontext
+        try:
+            try:
+                with guard():  # e.g. lifts a keyboard/mouse lock so the user can actually click
+                    recording = recorder.record()
+                if recording.clicks == 0:
+                    result = RecordingResult(
+                        name, None, 0, recording.skipped_gestures, recording.duration,
+                        tuple(recording.warnings), "Nenhum clique gravado; nada foi salvo.",
+                    )
+                else:
+                    path = self._library.save(
+                        name, recording.steps, description=description, tags=tags,
+                        window=recording.window_size, overwrite=overwrite,
+                    )
+                    result = RecordingResult(
+                        name, path, recording.clicks, recording.skipped_gestures,
+                        recording.duration, tuple(recording.warnings),
+                    )
+            except Exception as exc:  # a thread has nobody to raise to: report instead
+                self._log(f"recording failed: {exc}")
+                result = RecordingResult(name, None, 0, 0, 0.0, (), str(exc))
+        finally:
+            with self._runner_guard:
+                self._recorder = None
+            self._busy.release()
+        if on_done is not None:
+            try:
+                on_done(result)
+            except Exception as exc:
+                self._log(f"recording callback failed: {exc}")
+
+    def stop_recording(self) -> bool:
+        """Ask the running recording to finish (and be saved). Returns whether there was one."""
+        with self._runner_guard:
+            recorder = self._recorder
+        if recorder is None:
+            return False
+        recorder.stop()
+        return True
 
     def cancel(self) -> bool:
         """Abort the macro in progress, if any. Returns whether there was one."""

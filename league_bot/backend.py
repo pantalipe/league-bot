@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Protocol, Tuple
+from typing import Any, Callable, ContextManager, List, Optional, Protocol, Tuple
 
 from .imaging import Frame
 
@@ -58,3 +58,25 @@ class Backend(Protocol):
 
     def poll_input(self, hwnd: int, stop_vk: int) -> InputSample:
         """Read the mouse (client coordinates), the left button and the ``stop_vk`` key now."""
+
+
+class GuardedBackend:
+    """Wraps a Backend so real mouse clicks run inside ``guard()``.
+
+    A host application can use this to lift its own keyboard/mouse lock only for the
+    instant of each click. Everything else is forwarded untouched.
+    """
+
+    def __init__(self, inner: Backend, guard: Callable[[], ContextManager[Any]]) -> None:
+        self._inner = inner
+        self._guard = guard
+
+    def click(self, hwnd: int, x: int, y: int, foreground: bool) -> None:
+        if foreground:
+            with self._guard():
+                self._inner.click(hwnd, x, y, foreground)
+        else:
+            self._inner.click(hwnd, x, y, foreground)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._inner, name)

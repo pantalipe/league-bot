@@ -1,13 +1,16 @@
 import json
 import tempfile
+import threading
 import unittest
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 
 from league_bot.config import Settings
 from league_bot.game import GameBusy, GameError, SlayerGame
 from league_bot.macro import MacroError, MacroRunner
-from tests.fakes import FakeBackend, FakeTime
+from league_bot.recorder import Recorder, RecorderError, Recording
+from tests.fakes import FakeBackend, FakeTime, ScriptedMouse
 
 
 class Result:
@@ -169,6 +172,198 @@ class MacroLookupTests(GameTestCase):
         game = self.make_game()
         self.assertEqual(len(game.load_macro_steps("mini")), 3)
         self.assertEqual(game.list_macros(), ["mini"])
+
+
+def blocking_factory(clicks=1, holder=None):
+    """A recorder double that waits until stop() is called (or 5 s pass), then returns ``clicks`` clicks."""
+
+    class _Recorder:
+        def __init__(self, backend, title, **kwargs):
+            self.release = threading.Event()
+            self.started = threading.Event()
+            self.kwargs = kwargs
+            if holder is not None:
+                holder.append(self)
+
+        def record(self):
+            self.started.set()
+            self.release.wait(5)
+            steps = [{"action": "wait_window"}] + [{"action": "click", "x": "50%", "y": "50%"}] * clicks
+            return Recording(steps, clicks, 0, 1.0, (400, 800))
+
+        def stop(self):
+            self.release.set()
+
+    return _Recorder
+
+
+class RecordingTests(GameTestCase):
+    def setUp(self):
+        super().setUp()
+        self.done = threading.Event()
+        self.results = []
+
+    def on_done(self, result):
+        self.results.append(result)
+        self.done.set()
+
+    def finish(self):
+        self.assertTrue(self.done.wait(5), "recording did not finish")
+        return self.results[0]
+
+    def test_records_in_the_background_and_saves_to_the_library(self):
+        self.backend.input_fn = ScriptedMouse(self.clock.clock, [(1.0, 1.08, 200, 400), (3.0, 3.08, 100, 200)], stop_at=5.0)
+
+        def factory(backend, title, **kwargs):
+            return Recorder(backend, title, clock=self.clock.clock, sleep=self.clock.sleep, background_capture=False, **kwargs)
+
+        game = self.make_game(recorder_factory=factory)
+        game.start_recording("quest_1", description="Daily", tags=["daily"], on_done=self.on_done)
+        result = self.finish()
+        self.assertEqual((result.error, result.clicks, result.name), ("", 2, "quest_1"))
+        self.assertEqual(result.path, self.macros / "local" / "quest_1.json")
+        steps = game.library.load_steps("quest_1")
+        self.assertEqual([s["action"] for s in steps], ["wait_window", "click", "wait", "click"])
+        status = game.status()
+        self.assertEqual((status.busy, status.recording), (False, False))
+
+    def test_only_one_operation_at_a_time_and_stop_saves(self):
+        holder = []
+        game = self.make_game(recorder_factory=blocking_factory(clicks=2, holder=holder))
+        game.start_recording("first", on_done=self.on_done)
+        self.assertTrue(holder[0].started.wait(5))
+        status = game.status()
+        self.assertEqual((status.recording, status.busy), (True, True))
+        with self.assertRaises(GameBusy):
+            game.run_macro("mini")
+        with self.assertRaises(GameBusy):
+            game.start_recording("second")
+        self.assertTrue(game.stop_recording())
+        result = self.finish()
+        self.assertEqual(result.clicks, 2)
+        self.assertTrue((self.macros / "local" / "first.json").exists())
+        self.assertFalse(game.stop_recording())  # nothing left to stop
+        game.run_macro("mini")  # and the game is free again
+
+    def test_nothing_recorded_saves_nothing(self):
+        holder = []
+        game = self.make_game(recorder_factory=blocking_factory(clicks=0, holder=holder))
+        game.start_recording("empty", on_done=self.on_done)
+        holder[0].started.wait(5)
+        game.stop_recording()
+        result = self.finish()
+        self.assertIn("Nenhum clique", result.error)
+        self.assertIsNone(result.path)
+        self.assertFalse((self.macros / "local" / "empty.json").exists())
+
+    def test_options_are_forwarded_to_the_recorder(self):
+        holder = []
+        game = self.make_game(recorder_factory=blocking_factory(holder=holder))
+        game.start_recording("opts", anchors=True, stop_vk=0x78, max_seconds=60, on_done=self.on_done)
+        holder[0].started.wait(5)
+        game.stop_recording()
+        self.finish()
+        kwargs = holder[0].kwargs
+        self.assertEqual((kwargs["anchors"], kwargs["stop_vk"], kwargs["max_seconds"]), (True, 0x78, 60))
+
+    def test_invalid_requests_are_refused_without_taking_the_game(self):
+        game = self.make_game(recorder_factory=blocking_factory())
+        for name in ["../evil", "a b"]:
+            with self.assertRaises(GameError):
+                game.start_recording(name)
+        game.library.save("taken", [{"action": "wait"}])
+        with self.assertRaisesRegex(GameError, "Ja existe"):
+            game.start_recording("taken")
+        self.backend.hide_for = 100
+        with self.assertRaisesRegex(GameError, "nao encontrada"):
+            game.start_recording("fresh")
+        self.assertFalse(game.status().busy)
+
+    def test_overwrite_replaces_an_existing_macro(self):
+        holder = []
+        game = self.make_game(recorder_factory=blocking_factory(clicks=1, holder=holder))
+        game.library.save("taken", [{"action": "wait"}])
+        game.start_recording("taken", overwrite=True, on_done=self.on_done)
+        holder[0].started.wait(5)
+        game.stop_recording()
+        self.finish()
+        self.assertEqual(len(game.library.load_steps("taken")), 2)
+
+    def test_the_input_guard_wraps_the_whole_recording(self):
+        events = []
+
+        @contextmanager
+        def guard():
+            events.append("enter")
+            try:
+                yield
+            finally:
+                events.append("exit")
+
+        class Instant:
+            def __init__(self, backend, title, **kwargs):
+                pass
+
+            def record(self):
+                events.append("record")
+                return Recording([{"action": "wait_window"}, {"action": "click", "x": 1, "y": 1}], 1, 0, 0.5, (400, 800))
+
+            def stop(self):
+                pass
+
+        game = self.make_game(recorder_factory=Instant, input_guard=guard)
+        game.start_recording("guarded", on_done=self.on_done)
+        self.finish()
+        self.assertEqual(events, ["enter", "record", "exit"])
+
+    def test_a_failing_recorder_reports_the_error_and_frees_the_game(self):
+        class Broken:
+            def __init__(self, backend, title, **kwargs):
+                pass
+
+            def record(self):
+                raise RecorderError("boom")
+
+            def stop(self):
+                pass
+
+        game = self.make_game(recorder_factory=Broken)
+        game.start_recording("broken", on_done=self.on_done)
+        result = self.finish()
+        self.assertEqual((result.error, result.path), ("boom", None))
+        self.assertFalse(game.status().busy)
+
+
+class GuardTests(GameTestCase):
+    def setUp(self):
+        super().setUp()
+        self.events = []
+        events = self.events
+
+        @contextmanager
+        def guard():
+            events.append("enter")
+            try:
+                yield
+            finally:
+                events.append("exit")
+
+        self.guard = guard
+        self.backend.click = lambda hwnd, x, y, foreground: events.append(("click", foreground))
+        self.write_macro("two", [{"action": "click", "x": "50%", "y": "50%"}, {"action": "click", "x": "10%", "y": "10%"}])
+
+    def test_foreground_clicks_run_inside_the_guard(self):
+        self.make_game(input_guard=self.guard).run_macro("two")
+        self.assertEqual(self.events, ["enter", ("click", True), "exit"] * 2)
+
+    def test_background_clicks_need_no_guard(self):
+        self.settings = replace(self.settings, foreground_input=False)
+        self.make_game(input_guard=self.guard).run_macro("two")
+        self.assertEqual(self.events, [("click", False)] * 2)
+
+    def test_without_a_guard_nothing_is_wrapped(self):
+        self.make_game().run_macro("two")
+        self.assertEqual(self.events, [("click", True)] * 2)
 
 
 class ScreenshotTests(GameTestCase):

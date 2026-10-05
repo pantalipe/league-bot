@@ -1,11 +1,12 @@
 import threading
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from league_bot import bot as bot_module
 from league_bot.bot import LeagueBot, parse_command
 from league_bot.config import Settings
-from league_bot.game import GameBusy, GameError, GameStatus
+from league_bot.game import GameBusy, GameError, GameStatus, RecordingResult
 from league_bot.imaging import solid_frame
 from league_bot.macro import MacroError
 from league_bot.telegram_api import TelegramError
@@ -51,6 +52,8 @@ class FakeGame:
         self.calls = []
         self.error = None
         self.cancel_result = True
+        self.stop_result = True
+        self.rec_kwargs = {}
 
     def _do(self, name, result=None):
         self.calls.append(name)
@@ -75,6 +78,16 @@ class FakeGame:
 
     def list_macros(self):
         return ["start_game", "extra"]
+
+    def start_recording(self, name, **kwargs):
+        self.calls.append("rec:" + name)
+        if self.error:
+            raise self.error
+        self.rec_kwargs = kwargs
+
+    def stop_recording(self):
+        self.calls.append("recstop")
+        return self.stop_result
 
     def cancel(self):
         self.calls.append("cancel")
@@ -108,7 +121,7 @@ class ParseTests(unittest.TestCase):
 
 class AuthorizationTests(BotTestCase):
     def test_strangers_cannot_touch_the_game(self):
-        for command in ["/startgame", "/stopgame", "/shot", "/status", "/macro start_game", "/cancel", "/help"]:
+        for command in ["/startgame", "/stopgame", "/shot", "/status", "/macro start_game", "/cancel", "/help", "/rec quest", "/recstop"]:
             self.bot.handle_update(update(command, user=STRANGER))
         self.assertEqual(self.game.calls, [])
         self.assertTrue(all("Nao autorizado" in text for _, text in self.api.messages))
@@ -187,6 +200,52 @@ class CommandTests(BotTestCase):
     def test_unknown_command(self):
         self.bot.handle_update(update("/dance"))
         self.assertIn("desconhecido", self.last_reply())
+
+
+class RecordingCommandTests(BotTestCase):
+    def test_rec_without_a_name_explains_usage(self):
+        self.bot.handle_update(update("/rec"))
+        self.assertIn("Uso: /rec", self.last_reply())
+        self.assertEqual(self.game.calls, [])
+
+    def test_rec_starts_in_the_background_and_reports_when_done(self):
+        self.bot.handle_update(update("/rec quest_1"))
+        self.assertEqual(self.game.calls, ["rec:quest_1"])
+        self.assertEqual((self.game.rec_kwargs["anchors"], self.game.rec_kwargs["overwrite"]), (False, False))
+        self.assertIn("Gravando 'quest_1'", self.last_reply())
+        self.game.rec_kwargs["on_done"](RecordingResult("quest_1", Path("x.json"), 3, 1, 12.0))
+        reply = self.last_reply()
+        self.assertIn("salva: 3 clique(s)", reply)
+        self.assertIn("1 gesto(s)", reply)
+        self.assertIn("/macro quest_1", reply)
+
+    def test_rec_failure_is_shown_when_done(self):
+        self.bot.handle_update(update("/rec quest_1"))
+        self.game.rec_kwargs["on_done"](RecordingResult("quest_1", None, 0, 0, 3.0, (), "Nenhum clique gravado; nada foi salvo."))
+        self.assertIn("Nenhum clique", self.last_reply())
+
+    def test_rec_flags(self):
+        self.bot.handle_update(update("/rec quest_1 ANCHOR force"))
+        self.assertEqual((self.game.rec_kwargs["anchors"], self.game.rec_kwargs["overwrite"]), (True, True))
+        self.assertIn("cor de cada clique", self.last_reply())
+
+    def test_recstop(self):
+        self.bot.handle_update(update("/recstop"))
+        self.assertIn("Terminando", self.last_reply())
+        self.game.stop_result = False
+        self.bot.handle_update(update("/recstop"))
+        self.assertIn("Nenhuma gravacao", self.last_reply())
+
+    def test_rec_errors_are_reported(self):
+        for error, marker in [(GameBusy("ocupado"), "⏳"), (GameError("sem janela"), "❌")]:
+            self.game.error = error
+            self.bot.handle_update(update("/rec quest_1"))
+            self.assertIn(marker, self.last_reply())
+
+    def test_status_shows_an_ongoing_recording(self):
+        self.game.status = lambda: GameStatus(True, True, True, recording=True)
+        self.bot.handle_update(update("/status"))
+        self.assertIn("Gravando macro: sim", self.last_reply())
 
 
 class ErrorHandlingTests(BotTestCase):

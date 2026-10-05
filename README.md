@@ -29,6 +29,8 @@ O título da janela é configurado em `SLAYER_WINDOW_TITLE` e basta conter o tex
 | `/shot` | Envia um screenshot só da janela do jogo |
 | `/macro <nome>` | Roda outra macro (sem nome, lista as disponíveis) |
 | `/cancel` | Aborta a macro em andamento |
+| `/rec <nome>` | Grava seus cliques na janela do jogo como uma macro (termina com F10 ou `/recstop`); `anchor` e `force` são opcionais |
+| `/recstop` | Termina a gravação em andamento |
 | `/id` | Mostra o seu ID do Telegram (único comando liberado para qualquer pessoa) |
 
 `/stopgame` fecha o Google Play Games inteiro, inclusive outros jogos abertos nele.

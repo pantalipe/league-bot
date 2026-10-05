@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 from typing import Callable, Dict, List, Optional, Tuple
 
+from . import texts
 from .config import Settings
 from .game import GameBusy, GameError, SlayerGame
 from .macro import MacroError
@@ -25,6 +26,8 @@ COMMANDS: List[Tuple[str, str]] = [
     ("shot", "Screenshot da janela do jogo"),
     ("macro", "Roda uma macro: /macro <nome>"),
     ("cancel", "Cancela a macro em andamento"),
+    ("rec", "Grava seus cliques como macro: /rec <nome>"),
+    ("recstop", "Termina a gravacao"),
     ("id", "Mostra o seu ID do Telegram"),
     ("help", "Lista os comandos"),
 ]
@@ -37,6 +40,8 @@ HELP_TEXT = (
     "/shot - screenshot da janela do jogo\n"
     "/macro <nome> - roda uma macro (sem nome: lista as disponiveis)\n"
     "/cancel - cancela a macro em andamento\n"
+    "/rec <nome> - grava seus cliques como uma macro (termina com F10 ou /recstop)\n"
+    "/recstop - termina a gravacao\n"
     "/id - mostra o seu ID do Telegram"
 )
 
@@ -72,6 +77,8 @@ class LeagueBot:
             "shot": self._cmd_shot,
             "macro": self._cmd_macro,
             "cancel": self._cmd_cancel,
+            "rec": self._cmd_rec,
+            "recstop": self._cmd_recstop,
         }
 
     # -- plumbing --------------------------------------------------------------
@@ -134,6 +141,8 @@ class LeagueBot:
             f"Janela: {'encontrada' if st.window_found else 'nao encontrada'}",
             f"Operacao em andamento: {'sim' if st.busy else 'nao'}",
         ]
+        if st.recording:
+            lines.append("Gravando macro: sim")
         self._reply(chat_id, "\n".join(lines))
 
     def _cmd_startgame(self, chat_id: int, args: List[str]) -> None:
@@ -158,6 +167,24 @@ class LeagueBot:
             return
         self._reply(chat_id, f"▶️ Rodando macro '{args[0]}'...")
         self._reply(chat_id, "✅ " + self._game.run_macro(args[0]))
+
+    def _cmd_rec(self, chat_id: int, args: List[str]) -> None:
+        if not args:
+            self._reply(chat_id, "Uso: /rec <nome> [anchor] [force]\nGrava seus cliques na janela do jogo. Termine com F10 ou /recstop.")
+            return
+        name, flags = args[0], {arg.lower() for arg in args[1:]}
+        anchors = "anchor" in flags
+        self._game.start_recording(
+            name, anchors=anchors, overwrite="force" in flags,
+            on_done=lambda result: self._reply(chat_id, texts.recording_result(result)),
+        )
+        self._reply(chat_id, texts.recording_started(name, anchors))
+
+    def _cmd_recstop(self, chat_id: int, args: List[str]) -> None:
+        if self._game.stop_recording():
+            self._reply(chat_id, "⏹️ Terminando a gravacao...")
+        else:
+            self._reply(chat_id, "Nenhuma gravacao em andamento.")
 
     def _cmd_cancel(self, chat_id: int, args: List[str]) -> None:
         if self._game.cancel():
