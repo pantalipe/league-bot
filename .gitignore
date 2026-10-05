@@ -12,3 +12,8 @@ venv/
 logs/
 *.log
 shots/
+
+# Build artifacts
+*.egg-info/
+build/
+dist/

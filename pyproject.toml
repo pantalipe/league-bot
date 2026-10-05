@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "league-bot"
+dynamic = ["version"]
+description = "Telegram remote control and macro recorder for Slayer Legend on Google Play Games (Windows, standard library only)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = ["Operating System :: Microsoft :: Windows"]
+dependencies = []
+
+[project.scripts]
+league-bot = "league_bot.__main__:main"
+
+[tool.setuptools]
+packages = ["league_bot"]
+
+[tool.setuptools.dynamic]
+version = { attr = "league_bot.__version__" }
