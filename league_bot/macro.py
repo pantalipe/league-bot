@@ -74,6 +74,10 @@ def validate_steps(steps: Any) -> None:
             color = step["color"]
             if not (isinstance(color, list) and len(color) == 3 and all(isinstance(c, int) and 0 <= c <= 255 for c in color)):
                 raise MacroError(f"step {number} ({action}): color must be [R, G, B] with values 0-255")
+        if "radius" in step:
+            radius = step["radius"]
+            if isinstance(radius, bool) or not isinstance(radius, int) or not 0 <= radius <= 20:
+                raise MacroError(f"step {number} ({action}): radius must be an integer from 0 to 20")
 
 
 def load_macro(path: Path) -> List[Step]:
@@ -85,6 +89,12 @@ def load_macro(path: Path) -> List[Step]:
     steps = data.get("steps") if isinstance(data, dict) else data
     validate_steps(steps)
     return steps
+
+
+def _describe_seen(seen) -> str:
+    if seen is None:
+        return "the window could not be captured (is it minimized?)"
+    return f"last seen {list(seen)}"
 
 
 class MacroRunner:
@@ -143,16 +153,18 @@ class MacroRunner:
         return found
 
     def _poll_pixel(self, step: Step, hwnd: Optional[int], timeout: float):
-        """Capture in a loop until the pixel matches. Returns (matched, hwnd, x_px, y_px).
+        """Capture in a loop until the pixel matches. Returns (matched, hwnd, x_px, y_px, last_seen).
 
         Tolerates the window briefly disappearing: login/splash and main windows
         of some apps do not share a handle, so the handle is re-resolved by title.
         """
         target = [int(c) for c in step["color"]]
         tolerance = step.get("tolerance", 20)
+        radius = int(step.get("radius", 0))  # 0 = the exact pixel; N = mean of the (2N+1)^2 patch around it
         poll = float(step.get("poll_seconds", 1))
         deadline = self._clock() + timeout
         x_px = y_px = 0
+        seen = None
         while True:
             if hwnd is None or not self._backend.is_window(hwnd):
                 hwnd = self._backend.find_window(self._title)
@@ -161,11 +173,15 @@ class MacroRunner:
                 x_px = resolve_coord(step["x"], width)
                 y_px = resolve_coord(step["y"], height)
                 frame = self._backend.capture(hwnd)
-                pixel = frame.pixel(x_px, y_px) if frame is not None else None
+                pixel = None
+                if frame is not None:
+                    pixel = frame.average(x_px, y_px, radius) if radius else frame.pixel(x_px, y_px)
+                if pixel is not None:
+                    seen = pixel
                 if pixel is not None and all(abs(pixel[i] - target[i]) <= tolerance for i in range(3)):
-                    return True, hwnd, x_px, y_px
+                    return True, hwnd, x_px, y_px, seen
             if self._clock() >= deadline:
-                return False, hwnd, x_px, y_px
+                return False, hwnd, x_px, y_px, seen
             self._pause(poll)
 
     # -- actions ---------------------------------------------------------------
@@ -195,21 +211,21 @@ class MacroRunner:
     def _do_wait_for_pixel(self, step: Step, hwnd: Optional[int]) -> Optional[int]:
         timeout = float(step.get("timeout", 20))
         self._log(f"waiting for pixel {step['color']} at ({step['x']}, {step['y']}) (up to {timeout:g}s)")
-        matched, hwnd, x_px, y_px = self._poll_pixel(step, hwnd, timeout)
+        matched, hwnd, x_px, y_px, seen = self._poll_pixel(step, hwnd, timeout)
         if not matched:
-            raise MacroError(f"expected pixel {step['color']} did not appear within {timeout:g}s")
+            raise MacroError(f"expected pixel {step['color']} did not appear within {timeout:g}s ({_describe_seen(seen)})")
         self._log(f"pixel found at ({x_px}, {y_px})")
         return hwnd
 
     def _do_click_if_pixel(self, step: Step, hwnd: Optional[int]) -> Optional[int]:
         timeout = float(step.get("timeout", 20))
         self._log(f"looking for pixel {step['color']} at ({step['x']}, {step['y']}) (up to {timeout:g}s)")
-        matched, hwnd, x_px, y_px = self._poll_pixel(step, hwnd, timeout)
+        matched, hwnd, x_px, y_px, seen = self._poll_pixel(step, hwnd, timeout)
         if matched and hwnd is not None:
             self._log(f"pixel found at ({x_px}, {y_px}) -- clicking")
             self._backend.click(hwnd, x_px, y_px, self._foreground)
         else:
-            self._log(f"pixel not found within {timeout:g}s -- continuing without clicking")
+            self._log(f"pixel not found within {timeout:g}s ({_describe_seen(seen)}) -- continuing without clicking")
         return hwnd
 
     def _do_move_resize(self, step: Step, hwnd: Optional[int]) -> int:

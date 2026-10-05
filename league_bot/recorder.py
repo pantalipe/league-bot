@@ -24,6 +24,7 @@ MAX_TAP_SECONDS = 0.6    # longer presses are holds, which macros cannot replay 
 MIN_WAIT = 0.3           # shorter gaps are not worth a wait step
 ANCHOR_TOLERANCE = 30
 ANCHOR_TIMEOUT = 30
+ANCHOR_RADIUS = 2  # patch radius used both to record the color and to compare it on replay
 
 
 class RecorderError(RuntimeError):
@@ -120,7 +121,7 @@ class Recorder:
         if self._frame is None:
             self._grab()
         frame = self._frame
-        return frame.average(x, y, 2) if frame is not None else None
+        return frame.average(x, y, ANCHOR_RADIUS) if frame is not None else None
 
     # -- recording -------------------------------------------------------------
 
@@ -199,7 +200,7 @@ class Recorder:
                 # screen, so a slower load than during recording cannot misplace the click.
                 steps.append({
                     "action": "wait_for_pixel", "x": x, "y": y, "color": list(click.color),
-                    "tolerance": ANCHOR_TOLERANCE, "poll_seconds": 0.5, "timeout": ANCHOR_TIMEOUT,
+                    "radius": ANCHOR_RADIUS, "tolerance": ANCHOR_TOLERANCE, "poll_seconds": 0.5, "timeout": ANCHOR_TIMEOUT,
                 })
             steps.append({"action": "click", "x": x, "y": y})
             previous = click.t

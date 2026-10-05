@@ -4,6 +4,7 @@ import unittest
 from league_bot.macro import MacroRunner, resolve_coord, validate_steps
 from league_bot.recorder import MAX_TAP_SECONDS, Recorder, RecorderError, vk_from_name
 from tests.fakes import FakeBackend, FakeTime, ScriptedMouse
+from tests.test_imaging import frame_from_rows
 
 TITLE = "Slayer Legend"
 TWO_TAPS = [(1.0, 1.08, 200, 400), (4.0, 4.08, 100, 200)]
@@ -38,6 +39,20 @@ class StepGenerationTests(unittest.TestCase):
         recording, _, _ = record(TWO_TAPS)
         anchors = [s for s in recording.steps if s["action"] == "wait_for_pixel"]
         self.assertTrue(all(a["color"] == [10, 10, 10] for a in anchors))
+        self.assertTrue(all(a["radius"] == 2 for a in anchors))
+
+    def test_anchors_replay_on_screens_where_a_single_pixel_differs_from_its_surroundings(self):
+        # alternating dark/bright columns: the exact pixel at x=10 is 0 but the 5x5 mean is 80
+        rows = [[(0, 0, 0) if x % 2 == 0 else (200, 200, 200) for x in range(20)] for _ in range(20)]
+        frame = frame_from_rows(rows)
+        backend = FakeBackend(size=(20, 20))
+        backend.capture = lambda hwnd: frame
+        recording, _, _ = record([(1.0, 1.08, 10, 10)], stop_at=3.0, backend=backend)
+        self.assertEqual([s["color"] for s in recording.steps if s["action"] == "wait_for_pixel"], [[80, 80, 80]])
+        replay, clock = FakeBackend(size=(20, 20)), FakeTime()
+        replay.capture = lambda hwnd: frame
+        MacroRunner(replay, TITLE, True, sleep=clock.sleep, clock=clock.clock).run(recording.steps)
+        self.assertEqual(replay.clicks(), [(10, 10, True)])
 
     def test_no_anchor_mode_emits_blind_clicks_only(self):
         recording, _, _ = record(TWO_TAPS, anchors=False)

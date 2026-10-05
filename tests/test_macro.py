@@ -4,6 +4,7 @@ from pathlib import Path
 
 from league_bot.macro import MacroCancelled, MacroError, MacroRunner, load_macro, resolve_coord, validate_steps
 from tests.fakes import FakeBackend, FakeTime
+from tests.test_imaging import frame_from_rows
 
 ROOT = Path(__file__).resolve().parent.parent
 TITLE = "Slayer Legend"
@@ -40,6 +41,9 @@ class ValidateTests(unittest.TestCase):
             [{"action": "wait_for_pixel", "x": 1, "y": 1, "color": [1, 2]}],
             [{"action": "wait_for_pixel", "x": 1, "y": 1, "color": [1, 2, 300]}],
             [{"action": "move_resize", "width": 10}],
+            [{"action": "wait_for_pixel", "x": 1, "y": 1, "color": [1, 2, 3], "radius": -1}],
+            [{"action": "wait_for_pixel", "x": 1, "y": 1, "color": [1, 2, 3], "radius": 2.5}],
+            [{"action": "wait_for_pixel", "x": 1, "y": 1, "color": [1, 2, 3], "radius": True}],
         ]
         for steps in cases:
             with self.subTest(steps=steps), self.assertRaises(MacroError):
@@ -146,6 +150,43 @@ class RunnerTests(unittest.TestCase):
         runner = MacroRunner(self.backend, TITLE, True, sleep=recreate_window, clock=self.clock.clock)
         runner.run([CLICK_CENTER, {"action": "wait", "seconds": 1}, CLICK_CENTER])
         self.assertEqual([hwnd for hwnd, *_ in self.backend.click_log], [101, 202])
+
+    def spotted_frame(self):
+        """5x5 frame: every pixel (100,100,100) except a bright center, so mean (106) != center (250)."""
+        rows = [[(250, 250, 250) if (x, y) == (2, 2) else (100, 100, 100) for x in range(5)] for y in range(5)]
+        return frame_from_rows(rows)
+
+    def test_radius_compares_the_patch_average_instead_of_one_pixel(self):
+        frame = self.spotted_frame()
+        self.backend.size = (5, 5)
+        self.backend.capture = lambda hwnd: frame
+        step = {"action": "wait_for_pixel", "x": 2, "y": 2, "color": [106, 106, 106], "tolerance": 5,
+                "poll_seconds": 0.5, "timeout": 2}
+        self.run_steps([dict(step, radius=2)])  # matches the average
+        with self.assertRaises(MacroError):
+            self.run_steps([step])  # radius 0 sees the bright center pixel instead
+
+    def test_timeout_error_reports_the_last_color_seen(self):
+        frame = self.spotted_frame()
+        self.backend.size = (5, 5)
+        self.backend.capture = lambda hwnd: frame
+        step = {"action": "wait_for_pixel", "x": 2, "y": 2, "color": [0, 0, 0], "timeout": 1}
+        with self.assertRaisesRegex(MacroError, r"last seen \[250, 250, 250\]"):
+            self.run_steps([step])
+
+    def test_timeout_error_says_when_nothing_could_be_captured(self):
+        self.backend.capture = lambda hwnd: None
+        step = {"action": "wait_for_pixel", "x": 1, "y": 1, "color": [0, 0, 0], "timeout": 1}
+        with self.assertRaisesRegex(MacroError, "could not be captured"):
+            self.run_steps([step])
+
+    def test_click_if_pixel_honors_radius(self):
+        frame = self.spotted_frame()
+        self.backend.size = (5, 5)
+        self.backend.capture = lambda hwnd: frame
+        self.run_steps([{"action": "click_if_pixel", "x": 2, "y": 2, "color": [106, 106, 106], "tolerance": 5,
+                         "radius": 2, "timeout": 1}])
+        self.assertEqual(self.backend.clicks(), [(2, 2, True)])
 
     def test_shipped_start_game_macro_end_to_end(self):
         self.backend.fill = (230, 230, 230)  # "TAP TO START" lit; no orange Confirm button
