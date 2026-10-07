@@ -1,143 +1,343 @@
 # league-bot
 
-Bot do Telegram para controlar o **Slayer Legend** (Google Play Games para PC) à distância: iniciar o jogo (passando sozinho pelas telas iniciais), fechar e tirar screenshot da janela. Projeto aberto, feito para a guild — **sem dependências**, só Python.
+Controle o **Slayer Legend no Google Play Games para PC** pelo Telegram: abra o jogo, veja a tela, grave sequências de cliques, repita missões e organize uma daily. Projeto aberto feito para os membros da guild, com **Python e biblioteca padrão**, sem dependências externas no bot próprio.
 
-> **Aviso:** o bot move o mouse e fecha processos no seu PC, e automatizar cliques pode ir contra os termos do jogo ou da plataforma. Use por sua conta e risco. Este projeto não é afiliado ao jogo, à desenvolvedora nem ao Google.
+Você pode usar o bot pronto ou incorporar a biblioteca `league_bot` ao seu bot do Telegram. Cada instalação controla o jogo **no computador em que o Python está rodando**.
+
+> **Aviso:** o bot move o mouse e fecha processos no seu PC. Automatizar cliques pode ir contra os termos do jogo ou da plataforma. Use por sua conta e risco. Este projeto não é afiliado ao jogo, à desenvolvedora nem ao Google.
+
+## Escolha como usar
+
+| Você quer… | Siga… |
+|---|---|
+| Criar um bot dedicado ao Slayer Legend | [Instalação do bot próprio](#instalação-do-bot-próprio) |
+| Usar o jogo no bot do Telegram que já possui | [Guia de integração](docs/telegram-integration.md) |
+| Gravar e executar sem Telegram | [Primeira macro](#gravando-sua-primeira-macro) e [linha de comando](#linha-de-comando) |
 
 ## Requisitos
 
-- Windows 10/11 com o Google Play Games para PC e o Slayer Legend instalado e logado
-- Python 3.9 ou mais novo (não precisa de `pip install`)
+- Windows 10/11, com Google Play Games para PC e Slayer Legend instalado e logado.
+- Python 3.9 ou mais novo. O bot próprio roda direto do repositório, sem `pip install`.
+- Para o Telegram: internet e um bot criado no [@BotFather](https://t.me/BotFather), ou um bot existente para a integração.
+- O Python deve rodar na sessão de desktop do Windows em que o jogo está aberto. O computador precisa permanecer ligado e acordado. Durante a gravação, mantenha o jogo visível e o mouse disponível.
 
-## Instalação
+O Telegram pode ser usado no celular, mas o jogo e a automação ficam no PC. Para usar na guild, cada pessoa configura sua própria instalação, seu bot e os IDs que autoriza a controlar esse PC.
 
-1. Clone o repositório e entre na pasta.
-2. No Telegram, fale com o [@BotFather](https://t.me/BotFather), use `/newbot` e guarde o token.
-3. Copie `.env.example` para `.env` e cole o token em `TELEGRAM_TOKEN`.
-4. Rode `python -m league_bot run`, mande `/id` para o seu bot e coloque o número que ele responder em `ALLOWED_USER_IDS` (vários IDs separados por vírgula). Reinicie o bot.
-5. Confira tudo com `python -m league_bot check`.
+## Instalação do bot próprio
 
-O título da janela é configurado em `SLAYER_WINDOW_TITLE` e basta conter o texto (no Windows do autor ela aparece como `Slayer Legend - <perfil>`, e o padrão `Slayer Legend` funciona). Se outra janela tiver esse mesmo texto (uma aba do navegador, por exemplo), rode `python -m league_bot windows` e use o título completo.
+### 1. Baixe o projeto
 
-## Comandos do bot
+Baixe o ZIP em **Code → Download ZIP** na [página do projeto](https://github.com/pantalipe/league-bot) e extraia, ou use Git:
+
+```powershell
+git clone https://github.com/pantalipe/league-bot.git
+cd league-bot
+python --version
+```
+
+Abra o terminal na pasta que contém este README e `pyproject.toml`. Todos os comandos abaixo partem dessa pasta.
+
+### 2. Crie o bot e configure o acesso
+
+1. Fale com o [@BotFather](https://t.me/BotFather), use `/newbot` e guarde o token.
+2. Copie o arquivo de configuração:
+
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+3. Abra `.env` num editor e preencha `TELEGRAM_TOKEN`. Mantenha `SLAYER_WINDOW_TITLE=Slayer Legend` inicialmente.
+4. Inicie o bot:
+
+   ```powershell
+   python -m league_bot run
+   ```
+
+5. Abra a conversa com **seu bot** no Telegram e mande `/id`. Esse comando funciona antes da autorização.
+6. Pare o processo com `Ctrl+C`, coloque o ID recebido em `ALLOWED_USER_IDS` e inicie novamente. Para vários usuários, separe os IDs por vírgula. Todos poderão controlar o mesmo PC.
+
+Exemplo — substitua o token e o ID pelos seus:
+
+```dotenv
+TELEGRAM_TOKEN=123456789:COLE_SEU_TOKEN_AQUI
+ALLOWED_USER_IDS=123456789
+SLAYER_WINDOW_TITLE=Slayer Legend
+```
+
+Sem IDs autorizados, nenhum comando de controle fica liberado. Guarde o `.env` somente no seu computador; ele já é ignorado pelo Git.
+
+### 3. Confira o jogo e a configuração
+
+Com o jogo aberto manualmente, em outro terminal na pasta do projeto:
+
+```powershell
+python -m league_bot windows
+python -m league_bot check
+python -m league_bot shot teste.png
+```
+
+Abra `teste.png` e confira se é a janela do jogo. No Telegram, teste `/status` e `/shot`.
+
+`SLAYER_WINDOW_TITLE` precisa corresponder a parte do título da janela. Se uma aba do navegador também tiver “Slayer Legend” no título, use o título completo exibido por `windows`. Reinicie o bot depois de alterar o `.env`.
+
+Para abrir automaticamente, use `/startgame`. A macro incluída passa pelas telas iniciais e termina minimizando a janela. Se a interface ou os tempos forem diferentes no seu PC, [calibre uma cópia local](#editando-e-calibrando-macros).
+
+O terminal do bot precisa continuar aberto. `Ctrl+C` encerra o processo; enquanto estiver desligado, os comandos não serão executados.
+
+## Comandos do bot próprio
 
 | Comando | O que faz |
 |---|---|
-| `/startgame` | Abre o jogo e roda a macro de início (`macros/start_game.json`) |
-| `/stopgame` | Fecha o Google Play Games (`client.exe` e `crosvm.exe`) |
-| `/status` | Mostra se o jogo está rodando e se a janela foi encontrada |
-| `/shot` | Envia um screenshot só da janela do jogo |
-| `/macro <nome>` | Roda outra macro (sem nome, lista as disponíveis) |
-| `/cancel` | Aborta a macro em andamento |
-| `/rec <nome> [anchor] [shots] [force]` | Grava seus cliques na janela do jogo como uma macro (termina com F10 ou `/recstop`); todas as opções são opcionais |
-| `/recstop` | Termina a gravação em andamento |
-| `/daily` | Roda todas as macros da daily, em ordem sorteada (veja "A daily") |
+| `/help` ou `/start` | Mostra a ajuda; `/start` não abre o jogo |
+| `/startgame` | Abre o jogo e roda a macro de início |
+| `/stopgame` | Fecha os processos configurados do Google Play Games |
+| `/status` | Informa processo, janela e operação/gravação em andamento |
+| `/shot` | Envia um screenshot da janela do jogo |
+| `/macro <nome>` | Executa uma macro; sem nome, lista as disponíveis |
+| `/cancel` | Interrompe a macro ou daily em andamento |
+| `/rec <nome> [anchor] [shots] [force]` | Grava cliques; as opções podem ser combinadas |
+| `/recstop` | Termina a gravação e salva a macro |
+| `/daily` | Executa todas as macros da daily, em ordem sorteada |
 | `/dailylist` | Mostra as macros da daily |
 | `/dailyadd <macro>` | Acrescenta uma macro à daily |
 | `/dailyremove <macro>` | Tira uma macro da daily |
-| `/id` | Mostra o seu ID do Telegram (único comando liberado para qualquer pessoa) |
+| `/id` | Informa seu ID de usuário; disponível sem autorização |
 
-`/stopgame` fecha o Google Play Games inteiro, inclusive outros jogos abertos nele.
+**`/stopgame` fecha o Google Play Games inteiro**, inclusive outros jogos abertos nele. Os processos padrão são `client.exe` e `crosvm.exe`.
 
-## Linha de comando
+Esses são os nomes do bot próprio. Um bot integrado pode usar outros; no panda-homebot, a execução é `/runmacro` e o cancelamento é `/runcancel`. Veja o [guia de integração](docs/telegram-integration.md).
 
-`python -m league_bot <comando>`: `run` (padrão), `check`, `windows`, `status`, `start`, `stop`, `shot [arquivo.png]`, `macro <nome>`, `pixel <x> <y>`, `record <nome>`, `macros`, `show <nome>`, `rename <antigo> <novo>`, `delete <nome>` e `daily list|add|remove|run`. Tudo funciona sem Telegram, o que ajuda a testar macros.
+## Gravando sua primeira macro
 
-## Macros
+Uma macro repete cliques e esperas gravados. Comece numa tela de partida que você consiga reproduzir depois, por exemplo o menu principal.
 
-Uma macro é um JSON com uma lista de passos (veja `macros/start_game.json`). Ela é validada antes de rodar, então um erro de digitação no passo 12 não deixa o jogo pela metade.
+### Pelo Telegram
 
-| Passo | Campos |
+1. Com o jogo aberto, mande `/rec minha_quest`.
+2. Volte à janela e faça a missão normalmente. A gravação começa quando o comando é recebido.
+3. Termine com **F10** ou `/recstop`. O bot confirma o salvamento e a quantidade de cliques.
+4. Volte à mesma tela de partida e mande `/macro minha_quest` para testar.
+
+Cliques fora da janela são ignorados. Arrastar e segurar ainda não são suportados; esses gestos são ignorados e contabilizados no aviso final. Sem cliques, nenhuma macro é salva. A gravação pelo Telegram tem limite de 15 minutos.
+
+### Pelo terminal
+
+```powershell
+python -m league_bot record minha_quest -d "Missão da daily" -t daily
+```
+
+Há uma contagem de 3 segundos para ir à janela. Termine com **F10** ou `Ctrl+C`. Depois:
+
+```powershell
+python -m league_bot macro minha_quest
+python -m league_bot show minha_quest
+```
+
+A macro vai para `macros/local/minha_quest.json`. Os cliques ficam em porcentagens da área da janela; isso ajuda quando a interface mantém as mesmas proporções, mas mudanças de layout podem exigir nova gravação ou calibração.
+
+### Opções da gravação
+
+| Telegram | Terminal | Comportamento |
+|---|---|---|
+| Sem opção | Sem opção | Guarda cliques e esperas |
+| `anchor` | `--anchor` | Guarda a cor média perto do clique e espera essa cor antes de clicar na repetição |
+| `shots` | `--shots` | Salva imagens locais vinculadas aos cliques, além da macro |
+| `force` | `--force` | Substitui uma macro de mesmo nome por uma cópia local |
+
+```text
+/rec minha_quest anchor shots
+/rec minha_quest shots force
+```
+
+```powershell
+python -m league_bot record minha_quest --anchor --shots
+python -m league_bot record minha_quest --shots --force --delay 5 --stop-key F9 --max-seconds 600
+```
+
+Use `anchor` quando o carregamento varia e o ponto clicado tem uma cor consistente. Botões animados podem fazer a espera estourar. A opção verifica uma cor numa posição; não identifica a tela inteira nem procura o botão em outros lugares.
+
+Para **terminar uma gravação**, use F10 ou `/recstop`; `/cancel` interrompe a execução de macros/daily.
+
+## Prints associados aos cliques
+
+Com `shots`, a sessão fica em:
+
+```text
+macros/local/recordings/minha_quest/<sessão>/
+  manifest.json
+  0001_before.png
+  0001_after.png
+  0002_before.png
+  ...
+```
+
+O `manifest.json` liga cliques às imagens, coordenadas em pixels e porcentagens, resolução e horários relativos ao início da gravação. Também informa o índice do passo correspondente no JSON da macro, contando a partir de zero.
+
+- A imagem **anterior** vem de uma captura recente concluída antes do clique, com no máximo 1 segundo e tamanho compatível com a janela.
+- A **posterior** vem de uma captura iniciada pelo menos 0,5 segundo após soltar o mouse. Isso não garante que animações e carregamentos terminaram.
+- Um novo clique pode cancelar a imagem posterior pendente. Imagens ausentes e seus motivos ficam no manifesto e geram aviso.
+- Os PNGs são gravados em segundo plano, numa fila limitada. Falhas de gravação em disco ou fila cheia não impedem salvar a macro; as imagens omitidas são informadas.
+- Cada gravação cria uma sessão, inclusive com `force`. Renomear ou apagar a macro não renomeia nem apaga essas sessões.
+
+Os prints **ficam no computador do bot e não são enviados ao Telegram**. A mensagem final informa o caminho do manifesto e a quantidade de imagens. Abra os PNGs normalmente e consulte o JSON num editor. `shots` coleta imagens; não muda as decisões durante a execução.
+
+## Editando e calibrando macros
+
+Uma macro é um JSON com uma lista de passos. O arquivo inteiro é validado antes de executar. Veja [macros/start_game.json](macros/start_game.json).
+
+| Passo | Campos e comportamento |
 |---|---|
-| `wait_window` | `timeout` (s, padrão 30) |
-| `wait` | `seconds` |
-| `click` | `x`, `y` |
-| `wait_for_pixel` | `x`, `y`, `color` `[R,G,B]`, `tolerance`, `radius` (compara a média de uma área em volta do ponto, em vez de um pixel só), `poll_seconds`, `timeout` — falha se a cor não aparecer |
-| `click_if_pixel` | igual ao anterior, mas clica onde achou a cor e segue sem erro se não achar |
-| `move_resize` | `width`, `height`, `x` e `y` opcionais |
-| `minimize` | — |
+| `wait_window` | Espera a janela aparecer; `timeout` em segundos, padrão 30 |
+| `wait` | Espera `seconds`, padrão 1 |
+| `click` | Clica em `x`, `y` |
+| `wait_for_pixel` | Espera `color` `[R,G,B]` em `x`, `y`; falha se não aparecer no `timeout` |
+| `click_if_pixel` | Espera a mesma condição e clica nesse ponto; continua sem clicar se não aparecer |
+| `move_resize` | Ajusta `width`, `height`; `x`, `y` opcionais definem a posição da janela |
+| `minimize` | Minimiza a janela |
 
-Coordenadas podem ser `"center"`, uma porcentagem da área da janela (`"47.8%"`, funciona em qualquer tamanho de janela) ou pixels. Chaves que começam com `_` (como `_comment`) são ignoradas.
+Nos passos de cor, `tolerance` é a diferença permitida por canal (padrão 20), `radius` usa a média da área ao redor do ponto (padrão 0), `poll_seconds` é o intervalo de consulta (padrão 1) e `timeout` limita a espera (padrão 20). Os valores gerados por `anchor` podem ser diferentes desses padrões.
 
-**Calibrando:** com o jogo aberto, use `python -m league_bot shot` para ver a tela e `python -m league_bot pixel 47.8% 82.5%` para ler a cor de um ponto. Para ajustes só da sua máquina, copie a macro para `macros/local/` (ignorada pelo git): uma macro com o mesmo nome lá tem prioridade.
+Coordenadas aceitam `"center"`, porcentagens como `"47.8%"` ou números de pixels. `(0, 0)` é o canto superior esquerdo da área de conteúdo da janela. Chaves começando por `_`, como `_comment`, são ignoradas.
 
-Os cliques são reais (o mouse se move), porque o emulador do Play Games ignora cliques "em segundo plano". Use `/cancel` se algo sair do controle.
+Para consultar uma cor:
 
-## Gravando macros
-
-Em vez de escrever o JSON à mão, grave a quest jogando:
-
-```
-python -m league_bot record minha_quest -d "Daily 1" -t daily
+```powershell
+python -m league_bot shot tela.png
+python -m league_bot pixel 47.8% 82.5%
 ```
 
-1. Com o jogo aberto, rode o comando e, durante a contagem de 3 segundos, vá para a janela do jogo.
-2. Jogue normalmente. Cada clique dado na janela do jogo é gravado, junto com a espera entre eles. Cliques fora da janela são ignorados.
-3. Aperte **F10** (ou `Ctrl+C` no terminal) para terminar. A macro é salva em `macros/local/minha_quest.json`.
+Uma cópia em `macros/local/` tem prioridade sobre a macro compartilhada de mesmo nome. Para ajustar a inicialização somente no seu PC:
 
-Depois, `python -m league_bot macro minha_quest` repete tudo. `python -m league_bot macros` lista as macros (compartilhadas e suas), `show <nome>` mostra os passos numerados para você editar o arquivo à mão, e `rename` e `delete` mexem só nas macros locais.
-
-- Por padrão a macro guarda só a posição de cada clique e a espera entre eles. Com `--anchor`, cada clique grava também a cor do ponto, e na repetição o bot espera essa cor aparecer antes de clicar (útil se o carregamento do jogo varia). Em botões que piscam ou têm animação a espera pode estourar o tempo, então use só quando fizer sentido. Você também pode acrescentar `wait_for_pixel` à mão.
-- Arrastar e segurar ainda não são suportados: esses gestos são ignorados e o comando avisa quantos foram.
-- `--shots` também guarda PNGs locais antes e depois de cada clique, mais um `manifest.json` com horários relativos ao início da gravação, dimensões, coordenadas em pixels e porcentagens e índice do passo da macro (base zero). Os arquivos ficam em `macros/local/recordings/<nome>/<sessão>/`, ignorados pelo git; regravar o mesmo nome cria outra pasta e preserva as evidências anteriores. No Telegram, use `/rec minha_quest shots` (também pode combinar com `anchor` e `force`). No terminal: `python -m league_bot record minha_quest --shots`. Os prints não são enviados ao Telegram.
-- A captura anterior deve ter terminado antes do clique, ter no máximo 1 s e corresponder ao tamanho da janela. A posterior usa um atraso mínimo de 0,5 s após soltar o mouse; isso não garante que a tela esteja estável. Um clique seguinte rápido cancela a captura posterior pendente. Imagens ausentes e seus motivos ficam explícitos no manifesto. A gravação dos PNGs usa uma fila limitada em segundo plano; se ela lotar, imagens são omitidas com aviso para não atrasar a leitura dos cliques. Falhas ao salvar imagens mantêm a macro gravada. Esta opção coleta exemplos; ainda não executa decisões visuais.
-- Outras opções: `--anchor`, `--stop-key F9`, `--delay 5`, `--max-seconds 600` e `--force` (sobrescreve uma macro local de mesmo nome).
-- A gravação vale para qualquer tamanho de janela, porque as posições são salvas em porcentagem.
-
-## A daily
-
-A daily é uma lista de macros que rodam **todas**, uma depois da outra, numa ordem **sorteada de novo a cada execução** (nunca igual à da última vez, quando existe outra ordem possível). Ela roda quando você manda; não há agendamento automático.
-
+```powershell
+New-Item -ItemType Directory -Force macros/local
+Copy-Item macros/start_game.json macros/local/start_game.json
 ```
+
+Edite a cópia local. Os cliques são reais e podem mover o mouse ou trazer a janela para frente. Evite usar o mouse em paralelo; `/cancel` interrompe uma macro em andamento.
+
+## Organizando a daily
+
+A daily roda **todas** as macros cadastradas, uma após outra, em ordem sorteada. Com duas ou mais entradas, evita repetir a ordem anterior. Ela roda quando você pede, sem agendamento automático.
+
+Teste cada macro sozinha. Como a ordem muda, faça as macros começarem e terminarem numa tela compatível, como o menu principal; não faça uma depender da missão anterior.
+
+```text
+/dailyadd quest_1
+/dailyadd quest_2
+/dailylist
+/daily
+```
+
+```powershell
 python -m league_bot daily add quest_1
 python -m league_bot daily add quest_2
 python -m league_bot daily list
 python -m league_bot daily run
 ```
 
-- Se o jogo estiver fechado, a daily abre o jogo (com a macro de início) antes de rodar a lista.
-- Se uma macro falhar, a daily para ali e avisa quais já tinham rodado. `/cancel` interrompe, inclusive a macro em andamento.
-- No Telegram: `/daily`, `/dailylist`, `/dailyadd <macro>` e `/dailyremove <macro>`. No fim o bot manda o resultado, a ordem usada e um screenshot da tela.
-- A lista fica em `state/daily.json` (ignorada pelo git; a pasta pode ser trocada com `SLAYER_DATA_DIR`).
+Se o jogo estiver fechado, a daily tenta abri-lo com a macro de início. Se uma macro falhar, para e informa quais terminaram. `/cancel` interrompe a daily e a macro atual. Ao fim, o bot próprio envia o resultado e tenta capturar a tela do jogo.
 
-## Segurança
+A lista fica em `state/daily.json`, ou na pasta `SLAYER_DATA_DIR`. Remover uma entrada da daily não apaga a macro.
 
-- Só quem está em `ALLOWED_USER_IDS` consegue usar o bot. Lista vazia significa que ninguém é autorizado.
-- O `.env` tem o token do seu bot: nunca commite nem cole em chats. O token é removido das mensagens de erro e dos logs.
-- Comandos mais antigos que `SLAYER_MAX_COMMAND_AGE` segundos (padrão 300) são ignorados, para o bot não executar o que ficou na fila enquanto o PC estava desligado.
+## Compartilhando com a guild
 
-## Estrutura
+Compartilhe somente o JSON da macro desejada. A outra pessoa pode colocá-lo em `macros/local/`, voltar à tela de partida e testar antes de incluí-lo na daily. Layout, idioma, avisos e progresso da conta podem exigir adaptações mesmo com coordenadas em porcentagem.
 
+`macros/local/` e `state/` são pessoais e ignorados pelo Git. Os prints também ficam na pasta local. O `.env` contém credenciais e não deve ser compartilhado. Para contribuir uma macro, coloque uma cópia revisada em `macros/` com descrição da tela de partida e do que ela faz.
+
+## Configuração
+
+O bot próprio lê `.env` na raiz do projeto; variáveis de ambiente têm prioridade. Use `--env-file` antes do comando para outro arquivo:
+
+```powershell
+python -m league_bot --env-file C:/Bots/slayer.env run
 ```
+
+Comentários no `.env` devem ocupar uma linha própria, começando por `#`; comentários depois de valores não são suportados.
+
+| Variável | Uso / padrão |
+|---|---|
+| `TELEGRAM_TOKEN` | Token do bot próprio; obrigatório para `run` |
+| `ALLOWED_USER_IDS` | IDs de usuário separados por vírgula; vazio bloqueia o controle |
+| `SLAYER_WINDOW_TITLE` | Trecho do título; `.env.example` usa `Slayer Legend` |
+| `SLAYER_LAUNCH_URI` | URI de abertura; já há um padrão para Slayer Legend |
+| `SLAYER_PLAY_GAMES_EXE` | Executável usado se a URI estiver vazia |
+| `SLAYER_PROCESS_NAMES` | Processos consultados/fechados; `client.exe,crosvm.exe` |
+| `SLAYER_START_MACRO` | Nome da macro de início; `start_game` |
+| `SLAYER_MACROS_DIR` | Macros compartilhadas; padrão `macros/` na instalação, com subpasta `local/` |
+| `SLAYER_DATA_DIR` | Estado da daily; padrão `state/` na instalação |
+| `SLAYER_FOREGROUND_INPUT` | `1` usa cliques reais; `0` tenta cliques em segundo plano, que o emulador pode ignorar |
+| `SLAYER_MAX_COMMAND_AGE` | Bot próprio ignora comandos com mais de 300 segundos; `0` desativa o limite |
+| `SLAYER_LOG_FILE` | Arquivo opcional de log; padrão sem arquivo |
+
+Na integração, token e autorização pertencem ao bot que recebe os comandos. A biblioteca não aplica automaticamente `ALLOWED_USER_IDS` nem o limite de idade; o adaptador deve fazê-lo. Veja o [guia](docs/telegram-integration.md).
+
+## Linha de comando
+
+Os seguintes comandos funcionam sem iniciar o bot do Telegram:
+
+| Após `python -m league_bot` | Uso |
+|---|---|
+| `check` / `windows` / `status` | Confere configuração / lista janelas / consulta o jogo |
+| `start` / `stop` | Abre com a macro de início / fecha os processos configurados |
+| `shot [arquivo.png]` | Salva a tela; aceita `.bmp` também |
+| `pixel <x> <y>` | Lê a cor de um ponto |
+| `record <nome>` | Grava macro; veja `record --help` |
+| `macro <nome>` | Executa macro |
+| `macros` / `show <nome>` | Lista macros / mostra passos numerados |
+| `rename <antigo> <novo>` / `delete <nome>` | Renomeia/apaga somente macros locais |
+| `daily list`, `daily add <nome>`, `daily remove <nome>`, `daily run` | Consulta, edita ou executa a daily |
+
+`run` é o padrão se você omitir o comando. `python -m league_bot --help` mostra a ajuda completa. `/cancel` cancela execuções no processo do bot; não cancela um comando `macro` num terminal separado.
+
+## Problemas comuns
+
+| Sintoma | O que conferir |
+|---|---|
+| `python` não é reconhecido | Instale Python e habilite seu uso no terminal; confira `python --version` |
+| `No module named league_bot` | Entre na pasta do repositório ou, na integração, instale no mesmo Python do bot |
+| “Não autorizado” | Confira `/id`, `ALLOWED_USER_IDS` e reinicie o bot próprio; no integrado, confira o adaptador |
+| Janela não encontrada / screenshot de outra janela | Abra o jogo e confira `windows`; use um título mais específico |
+| Screenshot falha ou fica sem conteúdo | Confira se o jogo está renderizando; tente com a janela visível. `/shot` pode restaurar temporariamente uma janela minimizada |
+| Espera de cor estoura | Confira tela de partida, resolução e cor; use `pixel` para recalibrar, especialmente em botões animados |
+| Cliques vão para lugares errados | Volte à tela de partida e confira layout; regrave ou edite as coordenadas |
+| “Já existe uma operação em andamento” | `/recstop` termina gravações; `/cancel` interrompe execução de macro/daily no bot próprio |
+| Macro de mesmo nome já existe | Use outro nome ou `force` / `--force` para substituí-la localmente |
+| Faltam prints em `shots` | Leia o `manifest.json`; deixe mais tempo entre cliques e confira espaço/permissão no disco |
+| Conflito no recebimento de mensagens | Não rode dois processos consumindo o mesmo token; na integração, use somente o receptor existente |
+
+## Estrutura e contribuição
+
+```text
 league_bot/
-  bot.py           comandos do Telegram e autorização
-  telegram_api.py  cliente da Bot API (urllib)
-  game.py          iniciar, fechar, status, screenshot
-  macro.py         validação e execução das macros
-  recorder.py      gravação de cliques em macros
-  library.py       macros compartilhadas e locais
-  daily.py         a daily: lista de macros em ordem aleatória
-  winapi.py        Windows: janelas, captura e cliques (ctypes)
-  backend.py       interface que o winapi implementa
-  imaging.py       pixels e PNG sem Pillow
+  bot.py           comandos do bot próprio e autorização
+  telegram_api.py  cliente da Bot API com urllib
+  game.py          controlador do jogo e gravação em segundo plano
+  macro.py         validação e execução de macros
+  recorder.py      gravação de cliques e capturas associadas
+  evidence.py      PNGs e manifesto da sessão
+  library.py       biblioteca de macros compartilhadas e locais
+  daily.py         lista e execução da daily
+  winapi.py        janelas, captura e cliques do Windows com ctypes
+  backend.py       interface do backend
+  imaging.py       pixels e codificação PNG/BMP
   config.py        .env e configurações
+docs/              guia de integração com outros bots
 macros/            macros compartilhadas
-tests/             testes (rodam em qualquer sistema, com um backend falso)
+tests/             testes com backend falso
 ```
 
-## Contribuindo
+Para validar sem controlar janelas reais:
 
-```
+```powershell
 python -m unittest discover -s tests -t .
 ```
 
-- Sem dependências externas (só biblioteca padrão).
-- Mensagens de commit em inglês, no estilo `feat(macro): ...` / `fix(bot): ...`.
-- Toda lógica nova precisa de teste. Use o `FakeBackend` de `tests/fakes.py` em vez de mexer em janelas de verdade.
-- Calibrações novas de macro (outras resoluções, outros avisos do jogo) são muito bem-vindas.
-
-Ideias abertas: clique via `SendInput` para PCs onde o `mouse_event` não registra, macros para outras rotinas do jogo, uso em grupo do Telegram e mensagens em outros idiomas.
+- Preserve a biblioteca principal sem dependências externas; a integração usa as dependências do bot que a hospeda.
+- Toda lógica nova precisa de teste. Use `FakeBackend` de `tests/fakes.py`.
+- Use commits em inglês, como `feat(macro): ...` ou `fix(bot): ...`.
+- Ao contribuir uma macro, explique tela inicial/final e condições de calibração.
 
 ## Licença
 
-MIT. Veja `LICENSE`.
+MIT. Veja [LICENSE](LICENSE).
