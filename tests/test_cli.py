@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from league_bot import __main__ as cli
+from league_bot.daily import DailyResult
 from league_bot.recorder import Recording
 from tests.fakes import FakeBackend
 
@@ -166,6 +167,72 @@ class MacroCommandTests(unittest.TestCase):
         code, _, err = self.cli("delete", "shared_demo")
         self.assertEqual(code, 1)
         self.assertIn("compartilhada", err)
+
+
+class StubDailyRunner:
+    result = None
+
+    def run(self, on_start=None):
+        if on_start:
+            on_start(StubDailyRunner.result.order)
+        return StubDailyRunner.result
+
+
+class DailyCommandTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        (root / "macros").mkdir()
+        for name in ("quest_a", "quest_b"):
+            (root / "macros" / f"{name}.json").write_text(json.dumps([{"action": "wait"}]), encoding="utf-8")
+        self.env = {"SLAYER_MACROS_DIR": str(root / "macros"), "SLAYER_DATA_DIR": str(root / "state")}
+        StubDailyRunner.result = DailyResult(("quest_b", "quest_a"), ("quest_b", "quest_a"), "ok")
+        patcher = mock.patch.object(cli, "build_runner", lambda game, settings: StubDailyRunner())
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def cli(self, *argv):
+        return run_cli("daily", *argv, env=self.env)
+
+    def test_starts_empty(self):
+        code, out, _ = self.cli("list")
+        self.assertEqual(code, 0)
+        self.assertIn("vazia", out)
+
+    def test_add_list_and_remove(self):
+        code, out, _ = self.cli("add", "quest_b")
+        self.assertEqual(code, 0)
+        self.assertIn("'quest_b' adicionada", out)
+        self.cli("add", "quest_a")
+        code, out, _ = self.cli("list")
+        self.assertIn("Daily: 2 macro(s)", out)
+        self.assertRegex(out, r"1\. quest_b")
+        self.assertRegex(out, r"2\. quest_a")
+        code, out, _ = self.cli("remove", "quest_b")
+        self.assertEqual(code, 0)
+        self.assertIn("'quest_b' removida", out)
+        self.assertNotIn("quest_b\n", out.split("removida", 1)[1])
+
+    def test_errors_exit_with_code_1(self):
+        self.assertEqual(self.cli("add", "ghost")[0], 1)
+        self.cli("add", "quest_a")
+        code, _, err = self.cli("add", "quest_a")
+        self.assertEqual(code, 1)
+        self.assertIn("ja esta", err)
+        self.assertEqual(self.cli("remove", "quest_b")[0], 1)
+
+    def test_run_prints_the_order_and_succeeds(self):
+        code, out, _ = self.cli("run")
+        self.assertEqual(code, 0)
+        self.assertIn("Ordem de hoje: quest_b -> quest_a", out)
+        self.assertIn("Daily concluida (2/2 macro(s) concluidas)", out)
+
+    def test_run_failure_exits_with_code_1(self):
+        StubDailyRunner.result = DailyResult(("quest_b", "quest_a"), ("quest_b",), "failed", "passo 3 falhou")
+        code, _, err = self.cli("run")
+        self.assertEqual(code, 1)
+        self.assertIn("Daily falhou: passo 3 falhou (1/2", err)
 
 
 if __name__ == "__main__":

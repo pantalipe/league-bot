@@ -13,6 +13,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from . import texts
 from .config import Settings
+from .daily import DailyBusy, DailyError, DailyRunner
 from .game import GameBusy, GameError, SlayerGame
 from .macro import MacroError
 from .telegram_api import TelegramAPI, TelegramError
@@ -28,6 +29,10 @@ COMMANDS: List[Tuple[str, str]] = [
     ("cancel", "Cancela a macro em andamento"),
     ("rec", "Grava seus cliques como macro: /rec <nome>"),
     ("recstop", "Termina a gravacao"),
+    ("daily", "Roda todas as macros da daily em ordem aleatoria"),
+    ("dailylist", "Mostra as macros da daily"),
+    ("dailyadd", "Acrescenta uma macro a daily: /dailyadd <macro>"),
+    ("dailyremove", "Tira uma macro da daily: /dailyremove <macro>"),
     ("id", "Mostra o seu ID do Telegram"),
     ("help", "Lista os comandos"),
 ]
@@ -42,6 +47,10 @@ HELP_TEXT = (
     "/cancel - cancela a macro em andamento\n"
     "/rec <nome> - grava seus cliques como uma macro (termina com F10 ou /recstop)\n"
     "/recstop - termina a gravacao\n"
+    "/daily - roda todas as macros da daily, em ordem aleatoria\n"
+    "/dailylist - mostra as macros da daily\n"
+    "/dailyadd <macro> - acrescenta uma macro a daily\n"
+    "/dailyremove <macro> - tira uma macro da daily\n"
     "/id - mostra o seu ID do Telegram"
 )
 
@@ -62,8 +71,9 @@ def parse_command(text: str, bot_username: str = "") -> Optional[Tuple[str, List
 
 class LeagueBot:
     def __init__(self, settings: Settings, api: TelegramAPI, game: SlayerGame,
-                 clock: Callable[[], float] = time.time) -> None:
+                 clock: Callable[[], float] = time.time, daily: Optional[DailyRunner] = None) -> None:
         self._settings = settings
+        self._daily = daily
         self._api = api
         self._game = game
         self._clock = clock
@@ -79,6 +89,10 @@ class LeagueBot:
             "cancel": self._cmd_cancel,
             "rec": self._cmd_rec,
             "recstop": self._cmd_recstop,
+            "daily": self._cmd_daily,
+            "dailylist": self._cmd_dailylist,
+            "dailyadd": self._cmd_dailyadd,
+            "dailyremove": self._cmd_dailyremove,
         }
 
     # -- plumbing --------------------------------------------------------------
@@ -121,9 +135,9 @@ class LeagueBot:
             return
         try:
             handler(chat_id, args)
-        except GameBusy as exc:
+        except (GameBusy, DailyBusy) as exc:
             self._reply(chat_id, f"⏳ {exc}")
-        except (GameError, MacroError) as exc:
+        except (GameError, MacroError, DailyError) as exc:
             self._reply(chat_id, f"❌ {exc}")
         except Exception:
             log.exception("unexpected error handling /%s", command)
@@ -186,8 +200,48 @@ class LeagueBot:
         else:
             self._reply(chat_id, "Nenhuma gravacao em andamento.")
 
+    def _require_daily(self) -> DailyRunner:
+        if self._daily is None:
+            raise GameError("A daily nao esta configurada neste bot.")
+        return self._daily
+
+    def _send_frame(self, chat_id: int, frame, caption: str = "") -> None:
+        png = frame.to_png()
+        if len(png) <= MAX_PHOTO_BYTES:
+            self._api.send_photo(chat_id, png, caption)
+        else:
+            self._api.send_document(chat_id, png, "shot.png", caption)
+
+    def _cmd_daily(self, chat_id: int, args: List[str]) -> None:
+        daily = self._require_daily()
+        result = daily.run(on_start=lambda order: self._reply(chat_id, texts.daily_started(order)))
+        self._reply(chat_id, texts.daily_result(result))
+        if result.frame is not None:
+            self._send_frame(chat_id, result.frame, "🖼️ Tela ao fim da daily")
+
+    def _cmd_dailylist(self, chat_id: int, args: List[str]) -> None:
+        daily = self._require_daily()
+        self._reply(chat_id, texts.daily_list(daily.macros(), daily.missing()))
+
+    def _cmd_dailyadd(self, chat_id: int, args: List[str]) -> None:
+        daily = self._require_daily()
+        if not args:
+            self._reply(chat_id, "Uso: /dailyadd <macro>   (veja as macros com /macro)")
+            return
+        daily.add(args[0])
+        self._reply(chat_id, f"✅ '{args[0]}' entrou na daily.\n" + texts.daily_list(daily.macros(), daily.missing()))
+
+    def _cmd_dailyremove(self, chat_id: int, args: List[str]) -> None:
+        daily = self._require_daily()
+        if not args:
+            self._reply(chat_id, "Uso: /dailyremove <macro>   (veja a lista com /dailylist)")
+            return
+        daily.remove(args[0])
+        self._reply(chat_id, f"✅ '{args[0]}' saiu da daily.\n" + texts.daily_list(daily.macros(), daily.missing()))
+
     def _cmd_cancel(self, chat_id: int, args: List[str]) -> None:
-        if self._game.cancel():
+        daily_cancelled = self._daily.cancel() if self._daily is not None else False
+        if daily_cancelled or self._game.cancel():
             self._reply(chat_id, "🛑 Cancelando a macro em andamento...")
         else:
             self._reply(chat_id, "Nada em andamento para cancelar.")

@@ -80,6 +80,7 @@ class Settings:
     process_names: Tuple[str, ...] = ("client.exe", "crosvm.exe")
     start_macro: str = "start_game"
     macros_dir: Path = REPO_ROOT / "macros"
+    data_dir: Path = REPO_ROOT / "state"  # the daily list and other local state
     foreground_input: bool = True
     max_command_age: int = 300
     log_file: str = ""
@@ -100,6 +101,7 @@ class Settings:
             "SLAYER_PROCESS_NAMES": ",".join(self.process_names),
             "SLAYER_START_MACRO": self.start_macro,
             "SLAYER_MACROS_DIR": str(self.macros_dir),
+            "SLAYER_DATA_DIR": str(self.data_dir),
             "SLAYER_FOREGROUND_INPUT": "1" if self.foreground_input else "0",
             "SLAYER_MAX_COMMAND_AGE": str(self.max_command_age),
         }
@@ -134,6 +136,7 @@ def load_settings(environ: Optional[Mapping[str, str]] = None, env_file: Optiona
         process_names=names or defaults.process_names,
         start_macro=macro,
         macros_dir=Path(get("SLAYER_MACROS_DIR")) if get("SLAYER_MACROS_DIR") else defaults.macros_dir,
+        data_dir=Path(get("SLAYER_DATA_DIR")) if get("SLAYER_DATA_DIR") else defaults.data_dir,
         foreground_input=_as_bool("SLAYER_FOREGROUND_INPUT", get("SLAYER_FOREGROUND_INPUT", "1")),
         max_command_age=_as_int("SLAYER_MAX_COMMAND_AGE", get("SLAYER_MAX_COMMAND_AGE", "300")),
         log_file=get("SLAYER_LOG_FILE"),

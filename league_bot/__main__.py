@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .config import DEFAULT_ENV_FILE, ConfigError, Settings, load_settings
+from .daily import DailyError, build_runner, open_list
 from .game import GameError, SlayerGame
 from .library import LibraryError, MacroLibrary
 from .macro import MacroError, resolve_coord
@@ -56,6 +57,15 @@ def build_parser() -> argparse.ArgumentParser:
     rename.add_argument("new")
     delete = sub.add_parser("delete", help="apaga uma macro local")
     delete.add_argument("name")
+
+    daily = sub.add_parser("daily", help="a daily: lista de macros que rodam todas, em ordem aleatoria a cada vez")
+    daily_sub = daily.add_subparsers(dest="daily_command", required=True)
+    daily_sub.add_parser("list", help="mostra as macros da daily")
+    daily_add = daily_sub.add_parser("add", help="acrescenta uma macro a daily")
+    daily_add.add_argument("name")
+    daily_remove = daily_sub.add_parser("remove", help="tira uma macro da daily")
+    daily_remove.add_argument("name")
+    daily_sub.add_parser("run", help="roda todas as macros da daily em ordem aleatoria")
     return parser
 
 
@@ -187,6 +197,36 @@ def cmd_show(settings: Settings, name: str) -> int:
     return 0
 
 
+def cmd_daily(settings: Settings, args: argparse.Namespace) -> int:
+    action = args.daily_command
+    if action == "run":
+        runner = build_runner(_game(settings), settings)
+        result = runner.run(on_start=lambda order: print("Ordem de hoje: " + " -> ".join(order)))
+        progress = f"{len(result.done)}/{len(result.order)} macro(s) concluidas"
+        if result.status == "ok":
+            print(f"Daily concluida ({progress}).")
+            return 0
+        word = {"failed": "falhou", "cancelled": "cancelada"}.get(result.status, result.status)
+        print(f"Daily {word}: {result.error} ({progress})", file=sys.stderr)
+        return 1
+
+    daily = open_list(settings, MacroLibrary(settings.macros_dir))
+    if action == "add":
+        daily.add(args.name)
+        print(f"'{args.name}' adicionada a daily.")
+    elif action == "remove":
+        daily.remove(args.name)
+        print(f"'{args.name}' removida da daily.")
+    macros, missing = daily.macros(), daily.missing()
+    if not macros:
+        print("A daily esta vazia. Adicione macros com: python -m league_bot daily add <macro>")
+        return 0
+    print(f"Daily: {len(macros)} macro(s) (todas rodam, em ordem sorteada a cada execucao)")
+    for number, name in enumerate(macros, 1):
+        print(f"{number:>3}. {name}" + (" (nao existe mais)" if name in missing else ""))
+    return 0
+
+
 def run(args: argparse.Namespace) -> int:
     command = args.command or "run"
     try:
@@ -206,7 +246,8 @@ def run(args: argparse.Namespace) -> int:
         if command == "run":
             from .bot import LeagueBot
             api = TelegramAPI(settings.require_token())
-            LeagueBot(settings, api, _game(settings)).serve_forever()
+            game = _game(settings)
+            LeagueBot(settings, api, game, daily=build_runner(game, settings)).serve_forever()
             return 0
         if command == "status":
             st = _game(settings).status()
@@ -243,10 +284,12 @@ def run(args: argparse.Namespace) -> int:
             MacroLibrary(settings.macros_dir).delete(args.name)
             print(f"Macro '{args.name}' apagada.")
             return 0
+        if command == "daily":
+            return cmd_daily(settings, args)
     except KeyboardInterrupt:
         print("\nEncerrado.")
         return 0
-    except (ConfigError, GameError, MacroError, LibraryError, RecorderError, TelegramError, OSError) as exc:
+    except (ConfigError, GameError, MacroError, LibraryError, RecorderError, DailyError, TelegramError, OSError) as exc:
         print(f"Erro: {exc}", file=sys.stderr)
         return 1
     return 0

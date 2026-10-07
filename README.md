@@ -31,13 +31,17 @@ O título da janela é configurado em `SLAYER_WINDOW_TITLE` e basta conter o tex
 | `/cancel` | Aborta a macro em andamento |
 | `/rec <nome>` | Grava seus cliques na janela do jogo como uma macro (termina com F10 ou `/recstop`); `anchor` e `force` são opcionais |
 | `/recstop` | Termina a gravação em andamento |
+| `/daily` | Roda todas as macros da daily, em ordem sorteada (veja "A daily") |
+| `/dailylist` | Mostra as macros da daily |
+| `/dailyadd <macro>` | Acrescenta uma macro à daily |
+| `/dailyremove <macro>` | Tira uma macro da daily |
 | `/id` | Mostra o seu ID do Telegram (único comando liberado para qualquer pessoa) |
 
 `/stopgame` fecha o Google Play Games inteiro, inclusive outros jogos abertos nele.
 
 ## Linha de comando
 
-`python -m league_bot <comando>`: `run` (padrão), `check`, `windows`, `status`, `start`, `stop`, `shot [arquivo.png]`, `macro <nome>`, `pixel <x> <y>`, `record <nome>`, `macros`, `show <nome>`, `rename <antigo> <novo>` e `delete <nome>`. Tudo funciona sem Telegram, o que ajuda a testar macros.
+`python -m league_bot <comando>`: `run` (padrão), `check`, `windows`, `status`, `start`, `stop`, `shot [arquivo.png]`, `macro <nome>`, `pixel <x> <y>`, `record <nome>`, `macros`, `show <nome>`, `rename <antigo> <novo>`, `delete <nome>` e `daily list|add|remove|run`. Tudo funciona sem Telegram, o que ajuda a testar macros.
 
 ## Macros
 
@@ -78,6 +82,22 @@ Depois, `python -m league_bot macro minha_quest` repete tudo. `python -m league_
 - Outras opções: `--anchor`, `--stop-key F9`, `--delay 5`, `--max-seconds 600` e `--force` (sobrescreve uma macro local de mesmo nome).
 - A gravação vale para qualquer tamanho de janela, porque as posições são salvas em porcentagem.
 
+## A daily
+
+A daily é uma lista de macros que rodam **todas**, uma depois da outra, numa ordem **sorteada de novo a cada execução** (nunca igual à da última vez, quando existe outra ordem possível). Ela roda quando você manda; não há agendamento automático.
+
+```
+python -m league_bot daily add quest_1
+python -m league_bot daily add quest_2
+python -m league_bot daily list
+python -m league_bot daily run
+```
+
+- Se o jogo estiver fechado, a daily abre o jogo (com a macro de início) antes de rodar a lista.
+- Se uma macro falhar, a daily para ali e avisa quais já tinham rodado. `/cancel` interrompe, inclusive a macro em andamento.
+- No Telegram: `/daily`, `/dailylist`, `/dailyadd <macro>` e `/dailyremove <macro>`. No fim o bot manda o resultado, a ordem usada e um screenshot da tela.
+- A lista fica em `state/daily.json` (ignorada pelo git; a pasta pode ser trocada com `SLAYER_DATA_DIR`).
+
 ## Segurança
 
 - Só quem está em `ALLOWED_USER_IDS` consegue usar o bot. Lista vazia significa que ninguém é autorizado.
@@ -94,6 +114,7 @@ league_bot/
   macro.py         validação e execução das macros
   recorder.py      gravação de cliques em macros
   library.py       macros compartilhadas e locais
+  daily.py         a daily: lista de macros em ordem aleatória
   winapi.py        Windows: janelas, captura e cliques (ctypes)
   backend.py       interface que o winapi implementa
   imaging.py       pixels e PNG sem Pillow

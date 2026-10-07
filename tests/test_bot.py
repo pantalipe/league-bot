@@ -6,6 +6,7 @@ from unittest import mock
 from league_bot import bot as bot_module
 from league_bot.bot import LeagueBot, parse_command
 from league_bot.config import Settings
+from league_bot.daily import DailyBusy, DailyError, DailyResult
 from league_bot.game import GameBusy, GameError, GameStatus, RecordingResult
 from league_bot.imaging import solid_frame
 from league_bot.macro import MacroError
@@ -246,6 +247,118 @@ class RecordingCommandTests(BotTestCase):
         self.game.status = lambda: GameStatus(True, True, True, recording=True)
         self.bot.handle_update(update("/status"))
         self.assertIn("Gravando macro: sim", self.last_reply())
+
+
+class FakeDaily:
+    def __init__(self):
+        self.entries = ["a", "b"]
+        self.calls = []
+        self.error = None
+        self.cancel_result = False
+        self.result = DailyResult(("b", "a"), ("b", "a"), "ok", "", solid_frame(2, 2, (1, 2, 3)))
+
+    def _check(self):
+        if self.error:
+            raise self.error
+
+    def macros(self):
+        return list(self.entries)
+
+    def missing(self):
+        return []
+
+    def add(self, name):
+        self.calls.append("add:" + name)
+        self._check()
+        self.entries.append(name)
+
+    def remove(self, name):
+        self.calls.append("remove:" + name)
+        self._check()
+        self.entries.remove(name)
+
+    def run(self, on_start=None):
+        self.calls.append("run")
+        self._check()
+        if on_start:
+            on_start(self.result.order)
+        return self.result
+
+    def cancel(self):
+        self.calls.append("cancel")
+        return self.cancel_result
+
+
+class DailyCommandTests(BotTestCase):
+    def setUp(self):
+        super().setUp()
+        self.daily = FakeDaily()
+        self.bot = LeagueBot(self.settings, self.api, self.game, clock=lambda: NOW + 5, daily=self.daily)
+        self.bot._username = "League_Bot"
+
+    def test_strangers_cannot_touch_the_daily(self):
+        for command in ["/daily", "/dailylist", "/dailyadd x", "/dailyremove a"]:
+            self.bot.handle_update(update(command, user=STRANGER))
+        self.assertEqual(self.daily.calls, [])
+
+    def test_daily_announces_the_order_runs_and_sends_the_final_screen(self):
+        self.bot.handle_update(update("/daily"))
+        texts_sent = [t for _, t in self.api.messages]
+        self.assertIn("b -> a", texts_sent[0])
+        self.assertIn("Daily concluida (2 macro(s))", texts_sent[1])
+        self.assertEqual(self.daily.calls, ["run"])
+        chat, png, caption = self.api.photos[0]
+        self.assertEqual((chat, png[:8]), (10, b"\x89PNG\r\n\x1a\n"))
+
+    def test_a_failed_daily_is_reported_and_still_sends_the_screen(self):
+        self.daily.result = DailyResult(("b", "a"), ("b",), "failed", "passo 3 falhou", solid_frame(2, 2, (1, 2, 3)))
+        self.bot.handle_update(update("/daily"))
+        self.assertIn("Daily falhou: passo 3 falhou", self.api.messages[-1][1])
+        self.assertEqual(len(self.api.photos), 1)
+
+    def test_no_screen_means_no_photo(self):
+        self.daily.result = DailyResult(("b", "a"), ("b", "a"), "ok")
+        self.bot.handle_update(update("/daily"))
+        self.assertEqual(self.api.photos, [])
+
+    def test_list_add_and_remove(self):
+        self.bot.handle_update(update("/dailylist"))
+        self.assertIn("• a", self.last_reply())
+        self.bot.handle_update(update("/dailyadd c"))
+        self.assertEqual(self.daily.calls, ["add:c"])
+        self.assertIn("'c' entrou na daily", self.last_reply())
+        self.assertIn("• c", self.last_reply())
+        self.bot.handle_update(update("/dailyremove a"))
+        self.assertIn("'a' saiu da daily", self.last_reply())
+        self.assertNotIn("• a", self.last_reply())
+
+    def test_add_and_remove_need_a_name(self):
+        self.bot.handle_update(update("/dailyadd"))
+        self.assertIn("Uso: /dailyadd", self.last_reply())
+        self.bot.handle_update(update("/dailyremove"))
+        self.assertIn("Uso: /dailyremove", self.last_reply())
+        self.assertEqual(self.daily.calls, [])
+
+    def test_errors_are_reported(self):
+        for error, marker in [(DailyBusy("ja esta rodando"), "⏳"), (DailyError("vazia"), "❌")]:
+            self.daily.error = error
+            self.bot.handle_update(update("/daily"))
+            self.assertIn(marker, self.last_reply())
+
+    def test_cancel_prefers_the_running_daily(self):
+        self.daily.cancel_result = True
+        self.bot.handle_update(update("/cancel"))
+        self.assertIn("Cancelando", self.last_reply())
+        self.assertNotIn("cancel", self.game.calls)  # the daily already aborted the macro in progress
+
+    def test_cancel_falls_back_to_the_game_when_no_daily_runs(self):
+        self.bot.handle_update(update("/cancel"))
+        self.assertEqual(self.game.calls, ["cancel"])
+
+    def test_without_a_daily_the_commands_explain_it(self):
+        bot = LeagueBot(self.settings, self.api, self.game, clock=lambda: NOW + 5)
+        bot.handle_update(update("/daily"))
+        self.assertIn("nao esta configurada", self.last_reply())
 
 
 class ErrorHandlingTests(BotTestCase):

@@ -1,6 +1,7 @@
 # Secrets and local configuration -- never commit these
 .env
 macros/local/
+state/
 
 # Python
 __pycache__/

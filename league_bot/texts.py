@@ -1,10 +1,13 @@
 """User-facing messages (pt-BR) shared by every chat front end built on league_bot."""
 from __future__ import annotations
 
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
 from .game import RecordingResult
 from .library import MacroInfo
+
+if TYPE_CHECKING:
+    from .daily import DailyResult
 
 
 def recording_started(name: str, anchors: bool = False) -> str:
@@ -42,3 +45,25 @@ def macro_list(infos: Sequence[MacroInfo]) -> str:
             text += f" [{', '.join(info.tags)}]"
         lines.append(text)
     return "\n".join(lines)
+
+
+def daily_list(macros: Sequence[str], missing: Sequence[str] = ()) -> str:
+    if not macros:
+        return "A daily esta vazia. Adicione macros com /dailyadd <macro>."
+    lines = [f"Daily ({len(macros)} macro(s), todas rodam, em ordem sorteada a cada execucao):"]
+    lines.extend(f"• {name}" + (" (nao existe mais)" if name in missing else "") for name in macros)
+    return "\n".join(lines)
+
+
+def daily_started(order: Sequence[str]) -> str:
+    return "▶️ Daily de hoje: " + " -> ".join(order) + "\nPode levar um tempo; /cancel aborta."
+
+
+def daily_result(result: "DailyResult") -> str:
+    order = " -> ".join(result.order)
+    done = ", ".join(result.done) or "nenhuma"
+    if result.status == "ok":
+        return f"✅ Daily concluida ({len(result.done)} macro(s)).\nOrdem: {order}"
+    if result.status == "cancelled":
+        return f"🛑 Daily cancelada. Concluidas: {done}.\nOrdem: {order}"
+    return f"❌ Daily falhou: {result.error}\nConcluidas: {done}\nOrdem: {order}"

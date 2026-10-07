@@ -50,5 +50,31 @@ class MacroListTests(unittest.TestCase):
         self.assertEqual(lines[3], "• broken (local, 0 passo(s)) - ERRO: JSON invalido")
 
 
+class DailyTextTests(unittest.TestCase):
+    def result(self, status, error="", done=("b",)):
+        from league_bot.daily import DailyResult
+        return DailyResult(("b", "a"), done, status, error)
+
+    def test_list(self):
+        self.assertIn("vazia", texts.daily_list([]))
+        text = texts.daily_list(["a", "b"], ["b"])
+        self.assertIn("Daily (2 macro(s)", text)
+        self.assertIn("• a\n", text + "\n")
+        self.assertIn("• b (nao existe mais)", text)
+
+    def test_started_shows_the_order(self):
+        self.assertIn("b -> a", texts.daily_started(("b", "a")))
+
+    def test_results(self):
+        ok = texts.daily_result(self.result("ok", done=("b", "a")))
+        self.assertTrue(ok.startswith("✅ Daily concluida (2 macro(s))"))
+        self.assertIn("Ordem: b -> a", ok)
+        cancelled = texts.daily_result(self.result("cancelled", "Daily cancelada."))
+        self.assertIn("cancelada. Concluidas: b", cancelled)
+        failed = texts.daily_result(self.result("failed", "passo 3 falhou", done=()))
+        self.assertIn("❌ Daily falhou: passo 3 falhou", failed)
+        self.assertIn("Concluidas: nenhuma", failed)
+
+
 if __name__ == "__main__":
     unittest.main()
