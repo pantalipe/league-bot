@@ -99,6 +99,25 @@ class ProcessTests(GameTestCase):
 
 
 class StartTests(GameTestCase):
+    def test_screen_startup_waits_for_verified_home_before_finishing(self):
+        from tests.test_screen_flow import flow
+        self.write_macro("mini", [{"action": "wait_window"}, {"action": "prepare_window"},
+                                  flow(), {"action": "minimize"}])
+        self.backend.frames = [(v, v, v) for v in (100, 100, 150, 150, 200, 200)]
+        self.make_game().start()
+        self.assertEqual(self.backend.clicks(), [(200, 400, False)] * 2)
+        self.assertTrue(self.backend.minimized)
+
+    def test_uncalibrated_screen_startup_is_rejected_before_launch(self):
+        from tests.test_screen_flow import flow
+        step = flow()
+        step["screens"][0]["anchors"] = []
+        self.write_macro("mini", [{"action": "wait_window"}, step])
+        with self.assertRaisesRegex(MacroError, "at least two anchors"):
+            self.make_game().start()
+        self.assertEqual(self.launched, [])
+        self.assertEqual(self.backend.calls, [])
+
     def test_start_launches_then_runs_the_start_macro(self):
         message = self.make_game().start()
         self.assertEqual(self.launched, [self.settings])
@@ -362,6 +381,7 @@ class RecordingTests(GameTestCase):
 class GuardTests(GameTestCase):
     def setUp(self):
         super().setUp()
+        self.settings = replace(self.settings, foreground_input=True)
         self.events = []
         events = self.events
 

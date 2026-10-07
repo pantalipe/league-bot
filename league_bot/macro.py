@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import json
+import math
 import threading
 import time
+from uuid import uuid4
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .backend import Backend
+from .screens import ScreenError, matching_screens, validate_screens
 
 Step = Dict[str, Any]
 
@@ -29,6 +32,8 @@ REQUIRED_KEYS: Dict[str, Tuple[str, ...]] = {
     "click_if_pixel": ("x", "y", "color"),
     "move_resize": ("width", "height"),
     "minimize": (),
+    "prepare_window": (),
+    "screen_flow": ("screens", "terminal"),
 }
 
 
@@ -59,7 +64,7 @@ def validate_steps(steps: Any) -> None:
         if not isinstance(step, dict):
             raise MacroError(f"step {number}: must be an object")
         action = step.get("action")
-        if action not in REQUIRED_KEYS:
+        if not isinstance(action, str) or action not in REQUIRED_KEYS:
             raise MacroError(f"step {number}: unknown action {action!r} (known: {', '.join(sorted(REQUIRED_KEYS))})")
         missing = [key for key in REQUIRED_KEYS[action] if key not in step]
         if missing:
@@ -78,6 +83,25 @@ def validate_steps(steps: Any) -> None:
             radius = step["radius"]
             if isinstance(radius, bool) or not isinstance(radius, int) or not 0 <= radius <= 20:
                 raise MacroError(f"step {number} ({action}): radius must be an integer from 0 to 20")
+        if action == "screen_flow":
+            try:
+                validate_screens(step["screens"], step["terminal"])
+                for screen in step["screens"]:
+                    if "click" in screen:
+                        for axis in ("x", "y"):
+                            coord = screen["click"][axis]
+                            pixel = resolve_coord(coord, 100)
+                            if pixel < 0 or (isinstance(coord, str) and coord.endswith("%") and float(coord[:-1]) >= 100):
+                                raise MacroError("screen click coordinates must be inside the window")
+                for key, default in (("timeout", 120), ("poll_seconds", 0.5)):
+                    value = step.get(key, default)
+                    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+                        raise MacroError(f"{key} must be a finite positive number")
+                stable = step.get("stable_frames", 2)
+                if isinstance(stable, bool) or not isinstance(stable, int) or stable < 2:
+                    raise MacroError("stable_frames must be an integer >= 2")
+            except (ScreenError, MacroError, KeyError, ValueError, OverflowError) as exc:
+                raise MacroError(f"step {number} ({action}): {exc}") from None
 
 
 def load_macro(path: Path) -> List[Step]:
@@ -108,6 +132,7 @@ class MacroRunner:
         log: Optional[Callable[[str], None]] = None,
         sleep: Optional[Callable[[float], None]] = None,
         clock: Callable[[], float] = time.monotonic,
+        diagnostics_dir: Optional[Path] = None,
     ) -> None:
         self._backend = backend
         self._title = title
@@ -116,6 +141,8 @@ class MacroRunner:
         self._sleep = sleep
         self._clock = clock
         self._cancelled = threading.Event()
+        self.diagnostics_dir = diagnostics_dir
+        self._last_frame = None
 
     def cancel(self) -> None:
         self._cancelled.set()
@@ -134,14 +161,35 @@ class MacroRunner:
 
     def run(self, steps: List[Step], name: str = "macro") -> None:
         validate_steps(steps)
+        self._last_frame = None
         hwnd: Optional[int] = None
         for number, step in enumerate(steps, 1):
             self._check_cancel()
             handler = getattr(self, "_do_" + step["action"])
-            hwnd = handler(step, hwnd)
+            try:
+                hwnd = handler(step, hwnd)
+            except MacroCancelled:
+                raise
+            except (MacroError, OSError) as exc:
+                evidence = self._save_failure()
+                suffix = f"; screenshot: {evidence}" if evidence else ""
+                raise MacroError(f"step {number} ({step['action']}): {exc}{suffix}") from exc
         self._log(f"macro '{name}' finished ({len(steps)} steps)")
 
     # -- helpers ---------------------------------------------------------------
+
+    def _save_failure(self) -> Optional[Path]:
+        if self._last_frame is None or self.diagnostics_dir is None:
+            return None
+        try:
+            directory = Path(self.diagnostics_dir)
+            directory.mkdir(parents=True, exist_ok=True)
+            path = directory / f"screen-failure-{uuid4().hex}.png"
+            path.write_bytes(self._last_frame.to_png())
+            return path
+        except OSError as exc:
+            self._log(f"could not save failure screenshot: {exc}")
+            return None
 
     def _window(self, hwnd: Optional[int], purpose: str) -> int:
         """A live handle for the game window, re-resolved by title if the old one died."""
@@ -169,6 +217,9 @@ class MacroRunner:
             if hwnd is None or not self._backend.is_window(hwnd):
                 hwnd = self._backend.find_window(self._title)
             if hwnd is not None:
+                if self._backend.is_minimized(hwnd):
+                    self._backend.restore(hwnd)
+                    self._pause(0.8)
                 width, height = self._backend.client_size(hwnd)
                 x_px = resolve_coord(step["x"], width)
                 y_px = resolve_coord(step["y"], height)
@@ -185,6 +236,78 @@ class MacroRunner:
             self._pause(poll)
 
     # -- actions ---------------------------------------------------------------
+
+    def _do_prepare_window(self, step: Step, hwnd: Optional[int]) -> int:
+        hwnd = self._window(hwnd, "prepare background window")
+        if self._backend.is_minimized(hwnd):
+            self._backend.restore(hwnd)
+            self._pause(0.8)
+        return hwnd
+
+    def _do_screen_flow(self, step: Step, hwnd: Optional[int]) -> int:
+        """Only click recognized screens; complete after a stable terminal observation.
+
+        Unknown loading/animation frames are observed until the deadline. Ambiguous
+        recognition stops immediately. A persistent screen is never clicked twice.
+        This action always uses background input, independent of legacy macro mode.
+        """
+        screens = {screen["name"]: screen for screen in step["screens"]}
+        deadline = self._clock() + step.get("timeout", 120)
+        poll = step.get("poll_seconds", 0.5)
+        stable_required = step.get("stable_frames", 2)
+        candidate, stable, last_clicked = None, 0, None
+        counts: Dict[str, int] = {}
+        seen = "unknown"
+        while True:
+            self._check_cancel()
+            remaining = deadline - self._clock()
+            if remaining <= 0:
+                raise MacroError(f"screen flow timed out; last screen: {seen}; last click: {last_clicked or 'none'}")
+            if hwnd is None or not self._backend.is_window(hwnd):
+                hwnd = self._backend.find_window(self._title)
+                candidate, stable = None, 0
+            frame = None
+            if hwnd is not None and not self._backend.is_minimized(hwnd):
+                frame = self._backend.capture(hwnd)
+            matches = []
+            if frame is not None:
+                self._last_frame = frame
+                if self._backend.client_size(hwnd) == (frame.width, frame.height):
+                    matches = matching_screens(frame, step["screens"])
+            if self._clock() >= deadline:
+                continue  # slow capture must not allow a click after the deadline
+            if len(matches) > 1:
+                raise MacroError("ambiguous screen: " + ", ".join(matches))
+            current = matches[0] if matches else None
+            seen = current or "unknown"
+            stable = stable + 1 if current is not None and current == candidate else (1 if current else 0)
+            candidate = current
+            if current is not None and stable >= stable_required:
+                if current == step["terminal"]:
+                    self._log(f"screen flow complete: {current}")
+                    return hwnd
+                screen = screens[current]
+                if current != last_clicked and "click" in screen:
+                    if counts.get(current, 0) >= screen.get("max_clicks", 1):
+                        raise MacroError(f"screen '{current}' returned after its click limit")
+                    width, height = self._backend.client_size(hwnd)
+                    if not self._backend.is_window(hwnd) or (width, height) != (frame.width, frame.height):
+                        candidate, stable = None, 0
+                        self._pause(min(poll, max(0, deadline - self._clock())))
+                        continue
+                    x = resolve_coord(screen["click"]["x"], width)
+                    y = resolve_coord(screen["click"]["y"], height)
+                    if not (0 <= x < width and 0 <= y < height):
+                        raise MacroError(f"screen '{current}' click is outside the window")
+                    self._check_cancel()
+                    if self._clock() >= deadline:
+                        continue
+                    self._backend.click(hwnd, x, y, False)
+                    counts[current] = counts.get(current, 0) + 1
+                    last_clicked = current
+                    self._log(f"screen '{current}' clicked in background; waiting for transition")
+                    candidate, stable = None, 0
+            self._pause(min(poll, max(0, deadline - self._clock())))
 
     def _do_wait_window(self, step: Step, hwnd: Optional[int]) -> int:
         timeout = float(step.get("timeout", 30))
@@ -203,7 +326,7 @@ class MacroRunner:
         return hwnd
 
     def _do_click(self, step: Step, hwnd: Optional[int]) -> int:
-        hwnd = self._window(hwnd, "click")
+        hwnd = self._do_prepare_window(step, hwnd)
         width, height = self._backend.client_size(hwnd)
         self._backend.click(hwnd, resolve_coord(step["x"], width), resolve_coord(step["y"], height), self._foreground)
         return hwnd

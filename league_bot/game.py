@@ -120,6 +120,8 @@ class SlayerGame:
     def _run_steps(self, steps: List[Step], name: str, title: str) -> None:
         backend = GuardedBackend(self._backend, self._input_guard) if self._input_guard else self._backend
         runner = self._runner_factory(backend, title, self._settings.foreground_input, self._log)
+        if isinstance(runner, MacroRunner):
+            runner.diagnostics_dir = self._settings.data_dir / "diagnostics"
         with self._runner_guard:
             self._runner = runner
         try:
@@ -299,7 +301,7 @@ class SlayerGame:
         if not self._backend.is_minimized(hwnd):
             return self._grab(hwnd)
         # Minimized windows stop rendering, so there is nothing to capture: restore,
-        # grab and minimize again (steals focus for about a second).
+        # grab and minimize again using the backend's nonactivating window operations.
         if not self._busy.acquire(blocking=False):
             raise GameBusy("Janela minimizada e uma operacao esta em andamento; tente de novo em instantes.")
         try:

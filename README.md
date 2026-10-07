@@ -84,6 +84,8 @@ Para abrir automaticamente, use `/startgame`. A macro incluída passa pelas tela
 
 O terminal do bot precisa continuar aberto. `Ctrl+C` encerra o processo; enquanto estiver desligado, os comandos não serão executados.
 
+Os cliques usam segundo plano por padrão, pela janela interna do emulador, sem mover o cursor. O [início guiado por reconhecimento de tela](docs/screen-startup.md) já possui um executor e um modelo para calibração; a macro de início antiga continua selecionada até termos as referências das telas e validarmos o novo percurso.
+
 ## Comandos do bot próprio
 
 | Comando | O que faz |
@@ -266,7 +268,7 @@ Comentários no `.env` devem ocupar uma linha própria, começando por `#`; come
 | `SLAYER_START_MACRO` | Nome da macro de início; `start_game` |
 | `SLAYER_MACROS_DIR` | Macros compartilhadas; padrão `macros/` na instalação, com subpasta `local/` |
 | `SLAYER_DATA_DIR` | Estado da daily; padrão `state/` na instalação |
-| `SLAYER_FOREGROUND_INPUT` | `1` usa cliques reais; `0` tenta cliques em segundo plano, que o emulador pode ignorar |
+| `SLAYER_FOREGROUND_INPUT` | `0` (padrão) envia cliques à janela interna do emulador sem foco; `1` usa o mouse real. Não há fallback automático |
 | `SLAYER_MAX_COMMAND_AGE` | Bot próprio ignora comandos com mais de 300 segundos; `0` desativa o limite |
 | `SLAYER_LOG_FILE` | Arquivo opcional de log; padrão sem arquivo |
 

@@ -25,7 +25,7 @@ class LoadSettingsTests(unittest.TestCase):
         self.assertEqual(s.allowed_user_ids, frozenset())
         self.assertEqual(s.start_macro, "start_game")
         self.assertEqual(s.process_names, ("client.exe", "crosvm.exe"))
-        self.assertTrue(s.foreground_input)
+        self.assertFalse(s.foreground_input)
         self.assertEqual(s.max_command_age, 300)
 
     def test_real_environment_overrides_the_env_file(self):

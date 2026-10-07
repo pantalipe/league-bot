@@ -17,15 +17,18 @@ _WM_LBUTTONDOWN = 0x0201
 _WM_LBUTTONUP = 0x0202
 _MK_LBUTTON = 0x0001
 _PW_RENDERFULLCONTENT = 0x00000002
-_SW_MINIMIZE = 6
-_SW_RESTORE = 9
+_SW_SHOWMINNOACTIVE = 7
+_SW_SHOWNOACTIVATE = 4
 _SWP_NOZORDER = 0x0004
 _SWP_NOACTIVATE = 0x0010
+_SWP_NOMOVE = 0x0002
+_SWP_NOSIZE = 0x0001
 _MOUSEEVENTF_LEFTDOWN = 0x0002
 _MOUSEEVENTF_LEFTUP = 0x0004
 _DWMWA_CLOAKED = 14
 _VK_LBUTTON = 0x01
 _GA_ROOT = 2
+_CROSVM_CLASS = "CROSVM_1"
 
 if IS_WINDOWS:
     import ctypes
@@ -61,6 +64,8 @@ if IS_WINDOWS:
             u.ReleaseDC.argtypes = [hwnd, hdc]
             u.PrintWindow.argtypes = [hwnd, hdc, wintypes.UINT]
             u.EnumWindows.argtypes = [_WNDENUMPROC, wintypes.LPARAM]
+            u.EnumChildWindows.argtypes = [hwnd, _WNDENUMPROC, wintypes.LPARAM]
+            u.GetClassNameW.argtypes = [hwnd, wintypes.LPWSTR, ctypes.c_int]
             u.IsWindowVisible.argtypes = [hwnd]
             u.IsWindow.argtypes = [hwnd]
             u.IsIconic.argtypes = [hwnd]
@@ -71,6 +76,7 @@ if IS_WINDOWS:
             u.ClientToScreen.argtypes = [hwnd, ctypes.POINTER(wintypes.POINT)]
             u.PostMessageW.argtypes = [hwnd, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
             u.SetForegroundWindow.argtypes = [hwnd]
+            u.GetForegroundWindow.restype, u.GetForegroundWindow.argtypes = hwnd, []
             u.SetCursorPos.argtypes = [ctypes.c_int, ctypes.c_int]
             u.mouse_event.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, ctypes.c_size_t]
             u.ShowWindow.argtypes = [hwnd, ctypes.c_int]
@@ -180,25 +186,80 @@ if IS_WINDOWS:
                 self._click_message(hwnd, x, y)
 
         def _click_message(self, hwnd: int, x: int, y: int) -> None:
-            """Post the click straight to the window queue: no focus, no real mouse movement."""
-            lparam = ((y & 0xFFFF) << 16) | (x & 0xFFFF)
-            self._u.PostMessageW(hwnd, _WM_LBUTTONDOWN, _MK_LBUTTON, lparam)
+            """Post to the emulator surface without focusing or moving the real cursor."""
+            if self.is_minimized(hwnd):
+                self.restore(hwnd)
+                time.sleep(0.15)
+            root_width, root_height = self.client_size(hwnd)
+            if not (0 <= x < root_width and 0 <= y < root_height):
+                raise OSError(f"click coordinate ({x}, {y}) is outside the game client area")
+            child = self._find_emulator_surface(hwnd)
+            point = wintypes.POINT(x, y)
+            if not self._u.ClientToScreen(hwnd, ctypes.byref(point)):
+                raise self._last_win32_error("could not map game coordinates to screen")
+            if not self._u.ScreenToClient(child, ctypes.byref(point)):
+                raise self._last_win32_error("could not map screen coordinates to emulator surface")
+            child_width, child_height = self.client_size(child)
+            if not (0 <= point.x < child_width and 0 <= point.y < child_height):
+                raise OSError("click coordinate falls outside the emulator surface")
+            lparam = ((point.y & 0xFFFF) << 16) | (point.x & 0xFFFF)
+            if not self._u.PostMessageW(child, _WM_LBUTTONDOWN, _MK_LBUTTON, lparam):
+                raise self._last_win32_error("could not post mouse-down to emulator surface")
             time.sleep(0.05)
-            self._u.PostMessageW(hwnd, _WM_LBUTTONUP, 0, lparam)
+            if not self._u.PostMessageW(child, _WM_LBUTTONUP, 0, lparam):
+                raise self._last_win32_error("could not post mouse-up to emulator surface")
+
+        def _last_win32_error(self, message: str) -> OSError:
+            code = ctypes.get_last_error()
+            return OSError(code, message)
+
+        def _find_emulator_surface(self, hwnd: int) -> int:
+            matches: List[int] = []
+
+            def callback(child, _lparam):
+                name = ctypes.create_unicode_buffer(256)
+                if self._u.GetClassNameW(child, name, len(name)) and name.value == _CROSVM_CLASS:
+                    matches.append(child)
+                return True
+
+            self._u.EnumChildWindows(hwnd, _WNDENUMPROC(callback), 0)
+            if len(matches) != 1:
+                state = "not found" if not matches else "ambiguous"
+                raise OSError(f"emulator surface window {state}; refusing background click")
+            return matches[0]
 
         def _click_foreground(self, hwnd: int, x: int, y: int) -> None:
-            """Real click: raises the window and moves the actual cursor.
-
-            Needed because the Play Games emulator reads raw input and ignores posted messages.
-            """
+            """Legacy real-input mode: raises the window and moves the actual cursor."""
             if self.is_minimized(hwnd):
                 self.restore(hwnd)
                 time.sleep(0.5)
+            width, height = self.client_size(hwnd)
+            if not (0 <= x < width and 0 <= y < height):
+                raise OSError(f"click coordinate ({x}, {y}) is outside the game client area")
             origin = wintypes.POINT(0, 0)
-            self._u.ClientToScreen(hwnd, ctypes.byref(origin))
-            self._u.SetForegroundWindow(hwnd)
+            if not self._u.ClientToScreen(hwnd, ctypes.byref(origin)):
+                raise self._last_win32_error("could not map game coordinates to screen")
+            if not self._u.SetForegroundWindow(hwnd):
+                raise self._last_win32_error("Windows refused to focus the game window")
             time.sleep(0.3)
-            self._u.SetCursorPos(origin.x + x, origin.y + y)
+            target = wintypes.POINT(origin.x + x, origin.y + y)
+            if self._u.GetAncestor(self._u.GetForegroundWindow(), _GA_ROOT) != hwnd:
+                raise OSError("game window did not receive focus; refusing to move cursor")
+            if self._u.GetAncestor(self._u.WindowFromPoint(target), _GA_ROOT) != hwnd:
+                raise OSError("game window does not own the click location; refusing to move cursor")
+            if not self._u.SetCursorPos(target.x, target.y):
+                raise self._last_win32_error("could not move cursor to game window")
+            # Recheck after cursor movement; focus and ownership can change while we wait.
+            if self._u.GetAncestor(self._u.GetForegroundWindow(), _GA_ROOT) != hwnd:
+                raise OSError("game window lost focus; refusing foreground click")
+            hit = self._u.GetAncestor(self._u.WindowFromPoint(target), _GA_ROOT)
+            if hit != hwnd:
+                raise OSError("game window does not own the click location; refusing foreground click")
+            actual = wintypes.POINT()
+            if not self._u.GetCursorPos(ctypes.byref(actual)):
+                raise self._last_win32_error("could not verify cursor location")
+            if (actual.x, actual.y) != (target.x, target.y):
+                raise OSError("cursor moved away from the game click location; refusing foreground click")
             self._u.mouse_event(_MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
             time.sleep(0.05)
             self._u.mouse_event(_MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
@@ -206,10 +267,15 @@ if IS_WINDOWS:
         # -- window state ------------------------------------------------------
 
         def minimize(self, hwnd: int) -> None:
-            self._u.ShowWindow(hwnd, _SW_MINIMIZE)
+            self._u.ShowWindow(hwnd, _SW_SHOWMINNOACTIVE)
 
         def restore(self, hwnd: int) -> None:
-            self._u.ShowWindow(hwnd, _SW_RESTORE)
+            self._u.ShowWindow(hwnd, _SW_SHOWNOACTIVATE)
+            if not self._u.SetWindowPos(hwnd, 1, 0, 0, 0, 0,
+                                        _SWP_NOACTIVATE | _SWP_NOMOVE | _SWP_NOSIZE):
+                raise self._last_win32_error("could not restore game window without activating it")
+            if self.is_minimized(hwnd):
+                raise OSError("game window remained minimized after restore")
 
         def is_minimized(self, hwnd: int) -> bool:
             return bool(self._u.IsIconic(hwnd))

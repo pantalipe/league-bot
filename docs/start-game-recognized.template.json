@@ -1,0 +1,37 @@
+{
+  "description": "Modelo de inicio guiado por telas. Calibrar anchors antes de instalar como macro local.",
+  "steps": [
+    {"action": "wait_window", "timeout": 60},
+    {"action": "prepare_window"},
+    {
+      "action": "screen_flow",
+      "timeout": 180,
+      "poll_seconds": 0.5,
+      "stable_frames": 2,
+      "terminal": "main",
+      "screens": [
+        {
+          "name": "tap_to_start",
+          "_calibration": "Inserir pelo menos dois anchors exclusivos desta tela. A macro antiga usa texto claro em 47.8%, 82.5%; verificar na captura de referencia.",
+          "anchors": [],
+          "click": {"x": "center", "y": "center"},
+          "max_clicks": 1
+        },
+        {
+          "name": "save_confirmation",
+          "_calibration": "Sempre confirmar quando reconhecido. A macro antiga usa o laranja [237,138,0] em 31.8%, 78.15%; incluir outro anchor exclusivo do aviso.",
+          "anchors": [],
+          "click": {"x": "31.8%", "y": "78.15%"},
+          "max_clicks": 1
+        },
+        {
+          "name": "main",
+          "_calibration": "Inserir anchors de elementos estaveis que comprovem a tela principal, sem avisos cobrindo a interface.",
+          "anchors": []
+        }
+      ]
+    },
+    {"action": "move_resize", "width": 438, "height": 814},
+    {"action": "minimize"}
+  ]
+}

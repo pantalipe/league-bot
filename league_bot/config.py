@@ -81,7 +81,7 @@ class Settings:
     start_macro: str = "start_game"
     macros_dir: Path = REPO_ROOT / "macros"
     data_dir: Path = REPO_ROOT / "state"  # the daily list and other local state
-    foreground_input: bool = True
+    foreground_input: bool = False
     max_command_age: int = 300
     log_file: str = ""
 
@@ -137,7 +137,7 @@ def load_settings(environ: Optional[Mapping[str, str]] = None, env_file: Optiona
         start_macro=macro,
         macros_dir=Path(get("SLAYER_MACROS_DIR")) if get("SLAYER_MACROS_DIR") else defaults.macros_dir,
         data_dir=Path(get("SLAYER_DATA_DIR")) if get("SLAYER_DATA_DIR") else defaults.data_dir,
-        foreground_input=_as_bool("SLAYER_FOREGROUND_INPUT", get("SLAYER_FOREGROUND_INPUT", "1")),
+        foreground_input=_as_bool("SLAYER_FOREGROUND_INPUT", get("SLAYER_FOREGROUND_INPUT", "0")),
         max_command_age=_as_int("SLAYER_MAX_COMMAND_AGE", get("SLAYER_MAX_COMMAND_AGE", "300")),
         log_file=get("SLAYER_LOG_FILE"),
     )
