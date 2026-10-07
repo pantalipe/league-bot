@@ -11,9 +11,11 @@ import math
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
 from .backend import Backend
+from .evidence import Capture, EvidenceWriter
 from .macro import Step
 
 DEFAULT_STOP_VK = 0x79  # F10
@@ -48,6 +50,8 @@ class Recording:
     duration: float
     window_size: Tuple[int, int]
     warnings: List[str] = field(default_factory=list)
+    shots_path: Optional[Path] = None
+    image_count: int = 0
 
 
 @dataclass
@@ -59,6 +63,9 @@ class _Press:
     height: int
     color: Optional[Tuple[int, int, int]]
     travel: float = 0.0
+    before: Optional[Capture] = None
+    before_reason: str = "capture_unavailable"
+    released_at: float = 0.0
 
 
 def _percent(value: int, dimension: int) -> str:
@@ -73,6 +80,8 @@ class Recorder:
         title: str,
         *,
         anchors: bool = False,
+        shots_dir: Optional[Path] = None,
+        post_delay: float = 0.5,
         stop_vk: int = DEFAULT_STOP_VK,
         poll_interval: float = 0.005,
         capture_interval: float = 0.15,
@@ -85,6 +94,8 @@ class Recorder:
         self._backend = backend
         self._title = title
         self._anchors = anchors
+        self._shots_dir = shots_dir
+        self._post_delay = post_delay
         self._stop_vk = stop_vk
         self._poll_interval = poll_interval
         self._capture_interval = capture_interval
@@ -96,6 +107,13 @@ class Recorder:
         self._stop = threading.Event()
         self._hwnd: Optional[int] = None
         self._frame = None
+        self._capture: Optional[Capture] = None
+        self._capture_guard = threading.Lock()
+        self._generation = 0
+        self._capture_generation = 0
+        self._closed = False
+        self._evidence: Optional[EvidenceWriter] = None
+        self._pending = None
 
     def stop(self) -> None:
         """Ask a running ``record()`` to finish (safe from any thread)."""
@@ -104,12 +122,27 @@ class Recorder:
     # -- frames ----------------------------------------------------------------
 
     def _grab(self) -> None:
+        with self._capture_guard:
+            generation = self._generation
+        begun = self._clock()
         try:
             frame = self._backend.capture(self._hwnd)
         except Exception:  # the window can vanish between polls; the main loop notices that
             return
-        if frame is not None:
+        ended = self._clock()
+        with self._capture_guard:
+            if self._closed:
+                return
             self._frame = frame
+            self._capture = (begun, ended, frame) if frame is not None else None
+            self._capture_generation = generation
+            if self._pending is not None and generation == self._generation:
+                event, deadline = self._pending
+                if begun >= deadline and frame is not None:
+                    size = event["window"]
+                    if (frame.width, frame.height) == (size["width"], size["height"]):
+                        event["after"] = self._evidence.snapshot(event["index"], "after", self._capture, "")
+                        self._pending = None
 
     def _frame_loop(self, done: threading.Event) -> None:
         # Captures take tens of milliseconds, so they run beside the polling loop
@@ -132,6 +165,11 @@ class Recorder:
             raise RecorderError(f"window '{self._title}' not found (is the game open?)")
         self._hwnd = hwnd
         self._frame = None
+        self._capture = None
+        self._closed = False
+        self._generation = 0
+        self._capture_generation = 0
+        self._pending = None
         self._stop.clear()
         window_size = self._backend.client_size(hwnd)
 
@@ -142,11 +180,13 @@ class Recorder:
         prev_down = True  # a button already held when recording starts is ignored until released
         done = threading.Event()
         worker = None
-        if self._background and self._anchors:
+        start = end = self._clock()
+        self._evidence = EvidenceWriter(self._shots_dir, start, self._post_delay) if self._shots_dir is not None else None
+        if self._background and (self._anchors or self._evidence is not None):
             worker = threading.Thread(target=self._frame_loop, args=(done,), daemon=True)
             worker.start()
-        start = end = self._clock()
         last_capture = float("-inf")
+        failure = None
         try:
             while not self._stop.is_set():
                 now = end = self._clock()
@@ -159,7 +199,11 @@ class Recorder:
                 sample = self._backend.poll_input(hwnd, self._stop_vk)
                 if sample.stop_pressed:
                     break
-                if (self._anchors and not self._background and not sample.left_down and sample.inside
+                if sample.left_down and not prev_down:
+                    with self._capture_guard:
+                        self._generation += 1
+                        self._cancel_after("next_input")
+                if ((self._anchors or self._evidence is not None) and not self._background and not sample.left_down and sample.inside
                         and now - last_capture >= self._capture_interval):
                     self._grab()
                     last_capture = now
@@ -168,11 +212,31 @@ class Recorder:
                     # The color comes from the latest frame, taken before this press changed the screen.
                     color = self._color_at(sample.x, sample.y) if self._anchors else None
                     press = _Press(now, sample.x, sample.y, width, height, color)
+                    if self._evidence is not None:
+                        with self._capture_guard:
+                            capture = self._capture
+                            if capture is not None:
+                                begun, ended_capture, frame = capture
+                                if ended_capture > now:
+                                    press.before_reason = "capture_overlaps_click"
+                                elif self._capture_generation != self._generation - 1:
+                                    press.before_reason = "intervening_input"
+                                elif now - begun > 1.0:
+                                    press.before_reason = "capture_stale"
+                                elif (frame.width, frame.height) != (width, height):
+                                    press.before_reason = "window_resized"
+                                else:
+                                    press.before = capture
                 elif sample.left_down and press is not None:
                     press.travel = max(press.travel, math.hypot(sample.x - press.x, sample.y - press.y))
                 elif not sample.left_down and press is not None:
                     if press.travel <= TAP_RADIUS and now - press.t <= MAX_TAP_SECONDS:
                         clicks.append(press)
+                        press.released_at = now
+                        if self._evidence is not None:
+                            with self._capture_guard:
+                                self._add_evidence(press, len(clicks), start)
+                            press.before = None  # only the bounded writer queue retains full frames
                         self._log(f"click {len(clicks)}: ({_percent(press.x, press.width)}, {_percent(press.y, press.height)})")
                     else:
                         skipped += 1
@@ -182,11 +246,47 @@ class Recorder:
                 self._sleep(self._poll_interval)
         except KeyboardInterrupt:
             pass  # Ctrl+C in the terminal is a normal way to finish
+        except Exception as exc:
+            failure = exc
         finally:
             done.set()
+            with self._capture_guard:
+                self._closed = True
+                self._cancel_after("recording_stopped")
             if worker is not None:
                 worker.join(timeout=2)
-        return Recording(self._build_steps(clicks), len(clicks), skipped, end - start, window_size, warnings)
+        steps = self._build_steps(clicks)
+        shots_path = None
+        image_count = 0
+        if self._evidence is not None:
+            indices = [i for i, step in enumerate(steps) if step["action"] == "click"]
+            for event, index in zip(self._evidence.events, indices):
+                event["macro_step_index"] = index
+            shots_path = self._evidence.finish(end - start, window_size, warnings)
+            image_count = self._evidence.image_count
+        if failure is not None:
+            raise failure
+        return Recording(steps, len(clicks), skipped, end - start, window_size, warnings, shots_path, image_count)
+
+    def _cancel_after(self, reason: str) -> None:
+        """Called with the capture lock held; never label a later action as this click's result."""
+        if self._pending is not None:
+            event, _ = self._pending
+            event["after"] = {"status": reason, "file": None}
+            self._pending = None
+
+    def _add_evidence(self, press: _Press, index: int, start: float) -> None:
+        event = {
+            "index": index, "pressed_seconds": round(press.t - start, 6),
+            "released_seconds": round(press.released_at - start, 6),
+            "position": {"x": press.x, "y": press.y,
+                         "x_percent": _percent(press.x, press.width), "y_percent": _percent(press.y, press.height)},
+            "window": {"width": press.width, "height": press.height},
+            "before": self._evidence.snapshot(index, "before", press.before, press.before_reason),
+            "after": {"status": "pending", "file": None},
+        }
+        self._evidence.events.append(event)
+        self._pending = (event, press.released_at + self._post_delay)
 
     def _build_steps(self, clicks: List[_Press]) -> List[Step]:
         steps: List[Step] = [{"action": "wait_window", "timeout": 30}]

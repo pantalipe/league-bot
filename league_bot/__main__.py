@@ -44,6 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("-t", "--tag", action="append", default=[], help="tag (pode repetir)")
     record.add_argument("--anchor", action="store_true",
                         help="grava tambem a cor de cada clique e, ao repetir, espera essa cor aparecer antes de clicar (opcional)")
+    record.add_argument("--shots", action="store_true",
+                        help="salva capturas locais antes e depois de cada clique")
     record.add_argument("--force", action="store_true", help="sobrescreve uma macro com o mesmo nome")
     record.add_argument("--stop-key", default="F10", help="tecla que termina a gravacao, F1 a F12 (padrao F10)")
     record.add_argument("--delay", type=float, default=3.0, help="segundos de contagem antes de comecar (padrao 3)")
@@ -138,10 +140,11 @@ def cmd_record(settings: Settings, args: argparse.Namespace) -> int:
     if backend.find_window(settings.window_title) is None:
         raise GameError(f"Janela '{settings.window_title}' nao encontrada: abra o jogo antes de gravar.")
 
-    recorder = Recorder(
-        backend, settings.window_title, anchors=args.anchor, stop_vk=stop_vk,
-        max_seconds=args.max_seconds, log=print,
-    )
+    recorder_options = dict(anchors=args.anchor, stop_vk=stop_vk,
+                            max_seconds=args.max_seconds, log=print)
+    if args.shots:
+        recorder_options["shots_dir"] = library.new_recording_dir(args.name)
+    recorder = Recorder(backend, settings.window_title, **recorder_options)
     stop_key = args.stop_key.upper()
     print(f"Vou gravar os cliques que voce der na janela do jogo. Para terminar: {stop_key} (ou Ctrl+C aqui).")
     seconds = int(args.delay)
@@ -165,6 +168,8 @@ def cmd_record(settings: Settings, args: argparse.Namespace) -> int:
         window=recording.window_size, overwrite=args.force,
     )
     print(f"Macro '{args.name}' salva: {recording.clicks} clique(s) em {recording.duration:.0f}s -> {path}")
+    if recording.shots_path is not None:
+        print(f"Evidencias locais: {recording.image_count} imagem(ns) -> {recording.shots_path}")
     print(f"Para rodar: python -m league_bot macro {args.name}")
     return 0
 

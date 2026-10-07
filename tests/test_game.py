@@ -8,6 +8,7 @@ from pathlib import Path
 
 from league_bot.config import Settings
 from league_bot.game import GameBusy, GameError, SlayerGame
+from league_bot.library import LibraryError
 from league_bot.macro import MacroError, MacroRunner
 from league_bot.recorder import Recorder, RecorderError, Recording
 from tests.fakes import FakeBackend, FakeTime, ScriptedMouse
@@ -265,6 +266,30 @@ class RecordingTests(GameTestCase):
         self.finish()
         kwargs = holder[0].kwargs
         self.assertEqual((kwargs["anchors"], kwargs["stop_vk"], kwargs["max_seconds"]), (True, 0x78, 60))
+
+    def test_shots_are_saved_and_reported_without_changing_macro_format(self):
+        self.backend.size = (20, 20)
+        self.backend.input_fn = ScriptedMouse(self.clock.clock, [(1.0, 1.08, 5, 6)], stop_at=2.0, size=(20, 20))
+
+        def factory(backend, title, **kwargs):
+            return Recorder(backend, title, clock=self.clock.clock, sleep=self.clock.sleep, background_capture=False, **kwargs)
+
+        game = self.make_game(recorder_factory=factory)
+        game.start_recording("visual", shots=True, on_done=self.on_done)
+        result = self.finish()
+        self.assertEqual(result.error, "")
+        self.assertEqual(result.image_count, 2)
+        self.assertTrue(result.shots_path.is_file())
+        self.assertEqual(result.shots_path.parent.parent, self.macros / "local" / "recordings" / "visual")
+        self.assertEqual([s["action"] for s in game.library.load_steps("visual")], ["wait_window", "click"])
+
+    def test_recording_directory_is_unique_and_does_not_create_files(self):
+        library = self.make_game().library
+        first, second = library.new_recording_dir("visual"), library.new_recording_dir("visual")
+        self.assertNotEqual(first, second)
+        self.assertFalse(first.exists())
+        with self.assertRaises(LibraryError):
+            library.new_recording_dir("../evil")
 
     def test_invalid_requests_are_refused_without_taking_the_game(self):
         game = self.make_game(recorder_factory=blocking_factory())

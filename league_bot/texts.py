@@ -10,13 +10,15 @@ if TYPE_CHECKING:
     from .daily import DailyResult
 
 
-def recording_started(name: str, anchors: bool = False) -> str:
+def recording_started(name: str, anchors: bool = False, shots: bool = False) -> str:
     text = (
         f"🔴 Gravando '{name}'. Va para o jogo e clique normalmente. "
         "Para terminar: F10 ou /recstop (limite de 15 min)."
     )
     if anchors:
         text += "\nGravando tambem a cor de cada clique."
+    if shots:
+        text += "\nCapturas antes/depois dos cliques serao salvas localmente no computador do bot."
     return text
 
 
@@ -26,6 +28,8 @@ def recording_result(result: RecordingResult, run_command: str = "/macro") -> st
     lines = [f"✅ Macro '{result.name}' salva: {result.clicks} clique(s) em {result.duration:.0f}s."]
     if result.skipped_gestures:
         lines.append(f"⚠️ {result.skipped_gestures} gesto(s) de arrastar/segurar foram ignorados (ainda nao suportados).")
+    if result.shots_path is not None:
+        lines.append(f"📸 Evidencias locais: {result.image_count} imagem(ns) — {result.shots_path}")
     lines.extend(f"⚠️ {warning}" for warning in result.warnings)
     lines.append(f"Para rodar: {run_command} {result.name}")
     return "\n".join(lines)

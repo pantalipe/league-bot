@@ -14,6 +14,7 @@ class RecordingTextTests(unittest.TestCase):
         self.assertIn("/recstop", text)
         self.assertNotIn("cor de cada clique", text)
         self.assertIn("cor de cada clique", texts.recording_started("quest_1", anchors=True))
+        self.assertIn("localmente", texts.recording_started("quest_1", shots=True))
 
     def test_saved_result(self):
         result = RecordingResult("quest_1", Path("x.json"), 5, 2, 31.6, ("hit the time limit",))
@@ -22,6 +23,13 @@ class RecordingTextTests(unittest.TestCase):
         self.assertIn("2 gesto(s)", text)
         self.assertIn("hit the time limit", text)
         self.assertTrue(text.endswith("Para rodar: /macro quest_1"))
+
+    def test_saved_result_shows_local_evidence(self):
+        result = RecordingResult("quest_1", Path("x.json"), 5, 2, 31.6,
+                                 shots_path=Path("shots/manifest.json"), image_count=7)
+        text = texts.recording_result(result)
+        self.assertIn("7 imagem(ns)", text)
+        self.assertIn(str(Path("shots/manifest.json")), text)
 
     def test_run_command_is_configurable_for_other_front_ends(self):
         result = RecordingResult("q", Path("x.json"), 1, 0, 1.0)

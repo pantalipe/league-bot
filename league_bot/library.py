@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -103,6 +104,12 @@ class MacroLibrary:
             available = ", ".join(self.names()) or "(nenhuma)"
             raise LibraryError(f"Macro '{name}' nao existe. Disponiveis: {available}")
         return load_macro(path)
+
+    def new_recording_dir(self, name: str) -> Path:
+        """Allocate a unique local evidence path without creating files or replacing a session."""
+        self.check_name(name)
+        session = datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex
+        return self._local / "recordings" / name / session
 
     def save(
         self,

@@ -230,6 +230,11 @@ class RecordingCommandTests(BotTestCase):
         self.assertEqual((self.game.rec_kwargs["anchors"], self.game.rec_kwargs["overwrite"]), (True, True))
         self.assertIn("cor de cada clique", self.last_reply())
 
+    def test_rec_shots_flag_is_forwarded_and_explained(self):
+        self.bot.handle_update(update("/rec quest_1 shots"))
+        self.assertTrue(self.game.rec_kwargs["shots"])
+        self.assertIn("localmente", self.last_reply())
+
     def test_recstop(self):
         self.bot.handle_update(update("/recstop"))
         self.assertIn("Terminando", self.last_reply())

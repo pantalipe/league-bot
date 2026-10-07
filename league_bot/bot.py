@@ -27,7 +27,7 @@ COMMANDS: List[Tuple[str, str]] = [
     ("shot", "Screenshot da janela do jogo"),
     ("macro", "Roda uma macro: /macro <nome>"),
     ("cancel", "Cancela a macro em andamento"),
-    ("rec", "Grava seus cliques como macro: /rec <nome>"),
+    ("rec", "Grava seus cliques como macro: /rec <nome> [anchor] [shots] [force]"),
     ("recstop", "Termina a gravacao"),
     ("daily", "Roda todas as macros da daily em ordem aleatoria"),
     ("dailylist", "Mostra as macros da daily"),
@@ -45,7 +45,7 @@ HELP_TEXT = (
     "/shot - screenshot da janela do jogo\n"
     "/macro <nome> - roda uma macro (sem nome: lista as disponiveis)\n"
     "/cancel - cancela a macro em andamento\n"
-    "/rec <nome> - grava seus cliques como uma macro (termina com F10 ou /recstop)\n"
+    "/rec <nome> [anchor] [shots] [force] - grava seus cliques como macro (termina com F10 ou /recstop)\n"
     "/recstop - termina a gravacao\n"
     "/daily - roda todas as macros da daily, em ordem aleatoria\n"
     "/dailylist - mostra as macros da daily\n"
@@ -184,15 +184,17 @@ class LeagueBot:
 
     def _cmd_rec(self, chat_id: int, args: List[str]) -> None:
         if not args:
-            self._reply(chat_id, "Uso: /rec <nome> [anchor] [force]\nGrava seus cliques na janela do jogo. Termine com F10 ou /recstop.")
+            self._reply(chat_id, "Uso: /rec <nome> [anchor] [shots] [force]\nGrava seus cliques na janela do jogo. Termine com F10 ou /recstop.")
             return
         name, flags = args[0], {arg.lower() for arg in args[1:]}
         anchors = "anchor" in flags
-        self._game.start_recording(
-            name, anchors=anchors, overwrite="force" in flags,
-            on_done=lambda result: self._reply(chat_id, texts.recording_result(result)),
-        )
-        self._reply(chat_id, texts.recording_started(name, anchors))
+        shots = "shots" in flags
+        options = dict(anchors=anchors, overwrite="force" in flags,
+                       on_done=lambda result: self._reply(chat_id, texts.recording_result(result)))
+        if shots:
+            options["shots"] = True
+        self._game.start_recording(name, **options)
+        self._reply(chat_id, texts.recording_started(name, anchors, shots))
 
     def _cmd_recstop(self, chat_id: int, args: List[str]) -> None:
         if self._game.stop_recording():

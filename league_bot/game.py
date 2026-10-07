@@ -49,6 +49,8 @@ class RecordingResult:
     duration: float
     warnings: Tuple[str, ...] = ()
     error: str = ""
+    shots_path: Optional[Path] = None
+    image_count: int = 0
 
 
 def _default_launcher(settings: Settings) -> None:
@@ -183,6 +185,7 @@ class SlayerGame:
         name: str,
         *,
         anchors: bool = False,
+        shots: bool = False,
         stop_vk: int = DEFAULT_STOP_VK,
         description: str = "",
         tags: Sequence[str] = (),
@@ -207,8 +210,10 @@ class SlayerGame:
         if not self._busy.acquire(blocking=False):
             raise GameBusy("Ja existe uma operacao em andamento (use /cancel para abortar).")
         try:
+            options = {"shots_dir": self._library.new_recording_dir(name)} if shots else {}
             recorder = self._recorder_factory(
                 self._backend, title, anchors=anchors, stop_vk=stop_vk, max_seconds=max_seconds, log=self._log,
+                **options,
             )
             with self._runner_guard:
                 self._recorder = recorder
@@ -241,6 +246,7 @@ class SlayerGame:
                     result = RecordingResult(
                         name, path, recording.clicks, recording.skipped_gestures,
                         recording.duration, tuple(recording.warnings),
+                        shots_path=recording.shots_path, image_count=recording.image_count,
                     )
             except Exception as exc:  # a thread has nobody to raise to: report instead
                 self._log(f"recording failed: {exc}")

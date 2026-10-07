@@ -29,7 +29,7 @@ O título da janela é configurado em `SLAYER_WINDOW_TITLE` e basta conter o tex
 | `/shot` | Envia um screenshot só da janela do jogo |
 | `/macro <nome>` | Roda outra macro (sem nome, lista as disponíveis) |
 | `/cancel` | Aborta a macro em andamento |
-| `/rec <nome>` | Grava seus cliques na janela do jogo como uma macro (termina com F10 ou `/recstop`); `anchor` e `force` são opcionais |
+| `/rec <nome> [anchor] [shots] [force]` | Grava seus cliques na janela do jogo como uma macro (termina com F10 ou `/recstop`); todas as opções são opcionais |
 | `/recstop` | Termina a gravação em andamento |
 | `/daily` | Roda todas as macros da daily, em ordem sorteada (veja "A daily") |
 | `/dailylist` | Mostra as macros da daily |
@@ -79,6 +79,8 @@ Depois, `python -m league_bot macro minha_quest` repete tudo. `python -m league_
 
 - Por padrão a macro guarda só a posição de cada clique e a espera entre eles. Com `--anchor`, cada clique grava também a cor do ponto, e na repetição o bot espera essa cor aparecer antes de clicar (útil se o carregamento do jogo varia). Em botões que piscam ou têm animação a espera pode estourar o tempo, então use só quando fizer sentido. Você também pode acrescentar `wait_for_pixel` à mão.
 - Arrastar e segurar ainda não são suportados: esses gestos são ignorados e o comando avisa quantos foram.
+- `--shots` também guarda PNGs locais antes e depois de cada clique, mais um `manifest.json` com horários relativos ao início da gravação, dimensões, coordenadas em pixels e porcentagens e índice do passo da macro (base zero). Os arquivos ficam em `macros/local/recordings/<nome>/<sessão>/`, ignorados pelo git; regravar o mesmo nome cria outra pasta e preserva as evidências anteriores. No Telegram, use `/rec minha_quest shots` (também pode combinar com `anchor` e `force`). No terminal: `python -m league_bot record minha_quest --shots`. Os prints não são enviados ao Telegram.
+- A captura anterior deve ter terminado antes do clique, ter no máximo 1 s e corresponder ao tamanho da janela. A posterior usa um atraso mínimo de 0,5 s após soltar o mouse; isso não garante que a tela esteja estável. Um clique seguinte rápido cancela a captura posterior pendente. Imagens ausentes e seus motivos ficam explícitos no manifesto. A gravação dos PNGs usa uma fila limitada em segundo plano; se ela lotar, imagens são omitidas com aviso para não atrasar a leitura dos cliques. Falhas ao salvar imagens mantêm a macro gravada. Esta opção coleta exemplos; ainda não executa decisões visuais.
 - Outras opções: `--anchor`, `--stop-key F9`, `--delay 5`, `--max-seconds 600` e `--force` (sobrescreve uma macro local de mesmo nome).
 - A gravação vale para qualquer tamanho de janela, porque as posições são salvas em porcentagem.
 

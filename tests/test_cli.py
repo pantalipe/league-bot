@@ -138,6 +138,13 @@ class MacroCommandTests(unittest.TestCase):
         self.record("--force")
         self.assertFalse(FakeRecorder.seen["anchors"])  # plain clicks and waits unless asked otherwise
 
+    def test_shots_option_allocates_and_passes_local_directory(self):
+        shots_dir = self.dir / "recordings" / "mine-1"
+        with mock.patch.object(cli.MacroLibrary, "new_recording_dir", return_value=shots_dir) as create_dir:
+            self.record("--shots")
+        create_dir.assert_called_once_with("mine")
+        self.assertEqual(FakeRecorder.seen["shots_dir"], shots_dir)
+
     def test_nothing_recorded_saves_nothing(self):
         FakeRecorder.result = Recording([{"action": "wait_window"}], 0, 0, 3.0, (400, 800))
         code, out, _ = self.record()
