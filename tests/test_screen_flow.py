@@ -84,7 +84,9 @@ class ScreenFlowTests(unittest.TestCase):
 
     def test_uncalibrated_and_invalid_configuration_fails_before_window_access(self):
         for key, bad in (("timeout", 0), ("timeout", float("nan")), ("poll_seconds", -1),
-                         ("stable_frames", True), ("stable_frames", 1)):
+                         ("stable_frames", True), ("stable_frames", 1),
+                         ("frame_size", [434, False]), ("frame_size", [0, 810]),
+                         ("frame_size", "434x810"), ("frame_size", None)):
             with self.subTest(key=key, value=bad), self.assertRaises(MacroError):
                 self.runner.run([flow(**{key: bad})])
         step = flow()

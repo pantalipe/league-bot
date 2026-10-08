@@ -1,0 +1,168 @@
+{
+  "description": "Inicio reconhecido: entrada, confirmacao de save quando presente e tela principal. Cliques sem foco; perfil calibrado em 438x814.",
+  "steps": [
+    {
+      "action": "wait_window",
+      "timeout": 180
+    },
+    {
+      "action": "prepare_window"
+    },
+    {
+      "action": "move_resize",
+      "width": 438,
+      "height": 814
+    },
+    {
+      "action": "screen_flow",
+      "screens": [
+        {
+          "name": "tap_to_start",
+          "anchors": [
+            {
+              "x": 0.138568,
+              "y": 0.195303,
+              "color": [
+                255,
+                255,
+                255
+              ],
+              "tolerance": 15,
+              "radius": 0
+            },
+            {
+              "x": 0.367206,
+              "y": 0.838072,
+              "color": [
+                195,
+                190,
+                185
+              ],
+              "tolerance": 75,
+              "radius": 0
+            },
+            {
+              "x": 0.48037,
+              "y": 0.8356,
+              "color": [
+                195,
+                190,
+                185
+              ],
+              "tolerance": 75,
+              "radius": 0
+            },
+            {
+              "x": 0.642032,
+              "y": 0.838072,
+              "color": [
+                195,
+                190,
+                185
+              ],
+              "tolerance": 75,
+              "radius": 0
+            }
+          ],
+          "click": {
+            "x": "center",
+            "y": "center"
+          },
+          "max_clicks": 1
+        },
+        {
+          "name": "save_confirmation",
+          "anchors": [
+            {
+              "x": 0.242494,
+              "y": 0.797281,
+              "color": [
+                235,
+                137,
+                0
+              ],
+              "tolerance": 15,
+              "radius": 0
+            },
+            {
+              "x": 0.618938,
+              "y": 0.797281,
+              "color": [
+                100,
+                100,
+                100
+              ],
+              "tolerance": 10,
+              "radius": 0
+            },
+            {
+              "x": 0.415704,
+              "y": 0.484549,
+              "color": [
+                229,
+                229,
+                228
+              ],
+              "tolerance": 20,
+              "radius": 0
+            }
+          ],
+          "click": {
+            "x": "31.8%",
+            "y": "80.87%"
+          },
+          "max_clicks": 1
+        },
+        {
+          "name": "main",
+          "anchors": [
+            {
+              "x": 0.254042,
+              "y": 0.092707,
+              "color": [
+                2,
+                227,
+                243
+              ],
+              "tolerance": 15,
+              "radius": 1
+            },
+            {
+              "x": 0.424942,
+              "y": 0.961681,
+              "color": [
+                222,
+                226,
+                232
+              ],
+              "tolerance": 15,
+              "radius": 1
+            },
+            {
+              "x": 0.046189,
+              "y": 0.641533,
+              "color": [
+                200,
+                192,
+                192
+              ],
+              "tolerance": 15,
+              "radius": 1
+            }
+          ]
+        }
+      ],
+      "terminal": "main",
+      "timeout": 180,
+      "poll_seconds": 0.2,
+      "stable_frames": 2,
+      "frame_size": [
+        434,
+        810
+      ]
+    },
+    {
+      "action": "minimize"
+    }
+  ]
+}

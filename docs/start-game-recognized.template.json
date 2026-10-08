@@ -1,13 +1,15 @@
 {
   "description": "Modelo de inicio guiado por telas. Calibrar anchors antes de instalar como macro local.",
   "steps": [
-    {"action": "wait_window", "timeout": 60},
+    {"action": "wait_window", "timeout": 180},
     {"action": "prepare_window"},
+    {"action": "move_resize", "width": 438, "height": 814},
     {
       "action": "screen_flow",
       "timeout": 180,
       "poll_seconds": 0.5,
       "stable_frames": 2,
+      "frame_size": [434, 810],
       "terminal": "main",
       "screens": [
         {
@@ -31,7 +33,6 @@
         }
       ]
     },
-    {"action": "move_resize", "width": 438, "height": 814},
     {"action": "minimize"}
   ]
 }

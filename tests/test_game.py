@@ -131,6 +131,15 @@ class StartTests(GameTestCase):
         self.assertEqual(self.backend.calls, [])
         self.assertIn("ja esta rodando", message)
 
+    def test_shared_launcher_process_without_game_window_still_launches(self):
+        self.run_cmd.tasklist = RUNNING
+        self.backend.hide_for = 100
+        def launch(settings):
+            self.launched.append(settings)
+            self.backend.hide_for = 0
+        self.make_game(launcher=launch).start()
+        self.assertEqual(self.launched, [self.settings])
+
     def test_a_broken_macro_is_caught_before_anything_is_launched(self):
         self.write_macro("mini", [{"action": "teleport"}])
         with self.assertRaises(MacroError):

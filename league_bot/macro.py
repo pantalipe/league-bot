@@ -100,6 +100,10 @@ def validate_steps(steps: Any) -> None:
                 stable = step.get("stable_frames", 2)
                 if isinstance(stable, bool) or not isinstance(stable, int) or stable < 2:
                     raise MacroError("stable_frames must be an integer >= 2")
+                size = step.get("frame_size")
+                if "frame_size" in step and (not isinstance(size, list) or len(size) != 2 or
+                                         any(isinstance(v, bool) or not isinstance(v, int) or v <= 0 for v in size)):
+                    raise MacroError("frame_size must be [width, height] with positive integers")
             except (ScreenError, MacroError, KeyError, ValueError, OverflowError) as exc:
                 raise MacroError(f"step {number} ({action}): {exc}") from None
 
@@ -272,6 +276,8 @@ class MacroRunner:
             matches = []
             if frame is not None:
                 self._last_frame = frame
+                if "frame_size" in step and (frame.width, frame.height) != tuple(step["frame_size"]):
+                    raise MacroError(f"screen calibration requires size {step['frame_size']}; got {[frame.width, frame.height]}")
                 if self._backend.client_size(hwnd) == (frame.width, frame.height):
                     matches = matching_screens(frame, step["screens"])
             if self._clock() >= deadline:

@@ -78,7 +78,7 @@ class Settings:
     launch_uri: str = DEFAULT_LAUNCH_URI
     play_games_exe: str = ""
     process_names: Tuple[str, ...] = ("client.exe", "crosvm.exe")
-    start_macro: str = "start_game"
+    start_macro: str = "start_game_recognized"
     macros_dir: Path = REPO_ROOT / "macros"
     data_dir: Path = REPO_ROOT / "state"  # the daily list and other local state
     foreground_input: bool = False
@@ -122,7 +122,7 @@ def load_settings(environ: Optional[Mapping[str, str]] = None, env_file: Optiona
         raise ConfigError("TELEGRAM_TOKEN has an invalid format (expected '<digits>:<secret>')")
 
     names = tuple(n.strip() for n in get("SLAYER_PROCESS_NAMES", "client.exe,crosvm.exe").split(",") if n.strip())
-    macro = get("SLAYER_START_MACRO", "start_game")
+    macro = get("SLAYER_START_MACRO", "start_game_recognized")
     if not macro.replace("_", "").replace("-", "").isalnum():
         raise ConfigError("SLAYER_START_MACRO may only contain letters, digits, '_' and '-'")
 

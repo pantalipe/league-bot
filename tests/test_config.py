@@ -23,7 +23,7 @@ class LoadSettingsTests(unittest.TestCase):
     def test_defaults(self):
         s = load_settings(environ={}, env_file=None)
         self.assertEqual(s.allowed_user_ids, frozenset())
-        self.assertEqual(s.start_macro, "start_game")
+        self.assertEqual(s.start_macro, "start_game_recognized")
         self.assertEqual(s.process_names, ("client.exe", "crosvm.exe"))
         self.assertFalse(s.foreground_input)
         self.assertEqual(s.max_command_age, 300)

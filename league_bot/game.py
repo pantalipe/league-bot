@@ -168,7 +168,7 @@ class SlayerGame:
         title = self._title()
         steps = self.load_macro_steps(self._settings.start_macro)  # validate before launching anything
         with self._exclusive():
-            if self.is_running():
+            if self.is_running() and self._backend.find_window(title) is not None:
                 return "Slayer Legend ja esta rodando; nada a fazer."
             self._log("launching Slayer Legend")
             self._launcher(self._settings)

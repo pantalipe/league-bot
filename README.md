@@ -84,7 +84,7 @@ Para abrir automaticamente, use `/startgame`. A macro incluída passa pelas tela
 
 O terminal do bot precisa continuar aberto. `Ctrl+C` encerra o processo; enquanto estiver desligado, os comandos não serão executados.
 
-Os cliques usam segundo plano por padrão, pela janela interna do emulador, sem mover o cursor. O [início guiado por reconhecimento de tela](docs/screen-startup.md) já possui um executor e um modelo para calibração; a macro de início antiga continua selecionada até termos as referências das telas e validarmos o novo percurso.
+Os cliques usam segundo plano por padrão, pela janela interna do emulador, sem mover o cursor. O [início guiado por reconhecimento de tela](docs/screen-startup.md) é o padrão: reconhece a entrada, confirma o save quando aparece e só conclui após reconhecer a tela principal. Avisos desconhecidos interrompem o fluxo ao atingir o limite de espera e geram uma captura para diagnóstico.
 
 ## Comandos do bot próprio
 
@@ -265,7 +265,7 @@ Comentários no `.env` devem ocupar uma linha própria, começando por `#`; come
 | `SLAYER_LAUNCH_URI` | URI de abertura; já há um padrão para Slayer Legend |
 | `SLAYER_PLAY_GAMES_EXE` | Executável usado se a URI estiver vazia |
 | `SLAYER_PROCESS_NAMES` | Processos consultados/fechados; `client.exe,crosvm.exe` |
-| `SLAYER_START_MACRO` | Nome da macro de início; `start_game` |
+| `SLAYER_START_MACRO` | Nome da macro de início; `start_game_recognized`. `start_game` conserva a sequência antiga |
 | `SLAYER_MACROS_DIR` | Macros compartilhadas; padrão `macros/` na instalação, com subpasta `local/` |
 | `SLAYER_DATA_DIR` | Estado da daily; padrão `state/` na instalação |
 | `SLAYER_FOREGROUND_INPUT` | `0` (padrão) envia cliques à janela interna do emulador sem foco; `1` usa o mouse real. Não há fallback automático |
