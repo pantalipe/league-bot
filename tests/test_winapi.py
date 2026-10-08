@@ -246,6 +246,15 @@ class Win32InputMockTests(unittest.TestCase):
             self.backend.minimize(self.ROOT)
             self.assertEqual(self.u.ShowWindow.call_args.args, (self.ROOT, winapi._SW_SHOWMINNOACTIVE))
 
+    def test_restore_releases_game_focus_before_showing_in_background(self):
+        with self.enable_windows_symbols():
+            self.u.GetAncestor.return_value = self.ROOT
+            self.backend.restore(self.ROOT)
+            self.assertEqual([call.args for call in self.u.ShowWindow.call_args_list],
+                             [(self.ROOT, winapi._SW_MINIMIZE),
+                              (self.ROOT, winapi._SW_SHOWNOACTIVATE)])
+            self.assert_not_called(self.u.SetForegroundWindow)
+
     def test_restore_fails_if_window_remains_minimized(self):
         with self.enable_windows_symbols():
             self.u.SetWindowPos.return_value = 1

@@ -243,8 +243,9 @@ class MacroRunner:
 
     def _do_prepare_window(self, step: Step, hwnd: Optional[int]) -> int:
         hwnd = self._window(hwnd, "prepare background window")
-        if self._backend.is_minimized(hwnd):
-            self._backend.restore(hwnd)
+        was_minimized = self._backend.is_minimized(hwnd)
+        self._backend.restore(hwnd)
+        if was_minimized:
             self._pause(0.8)
         return hwnd
 

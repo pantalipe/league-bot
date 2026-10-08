@@ -131,10 +131,10 @@ class ScreenFlowTests(unittest.TestCase):
             with self.assertRaisesRegex(MacroError, "timed out"):
                 self.runner.run([flow(timeout=2)])
 
-    def test_prepare_restores_only_minimized_window(self):
+    def test_prepare_always_places_window_in_background(self):
         self.backend.minimized = True
         self.runner.run([{"action": "prepare_window"}, {"action": "prepare_window"}])
-        self.assertEqual(self.backend.calls.count(("restore",)), 1)
+        self.assertEqual(self.backend.calls.count(("restore",)), 2)
 
     def test_pixel_wait_restores_minimized_window_before_capture(self):
         self.backend.minimized = True

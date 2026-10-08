@@ -106,6 +106,11 @@ Nenhum `.env` existente e alterado automaticamente.
 explicita `start_game` ou uma copia em `macros/local/` continua prevalecendo.
 Reiniciar o processo do bot e necessario para carregar codigo e configuracao novos.
 
+Na preparacao do inicio, a janela e colocada atras das outras mesmo quando ja
+esta visivel. Se estiver em foco, e minimizada brevemente para o Windows ativar
+a proxima janela e restaurada sem ativacao. O launcher ainda pode aparecer por
+um instante antes dessa preparacao; nao ha garantia de abertura invisivel.
+
 O backend encontra a janela interna `CROSVM_1` em cada clique e converte as
 coordenadas para ela. Se o destino nao existir, houver mais de um, a coordenada
 estiver fora da area ou o envio falhar, o bot para. Nao ha fallback para o mouse

@@ -18,6 +18,7 @@ _WM_LBUTTONUP = 0x0202
 _MK_LBUTTON = 0x0001
 _PW_RENDERFULLCONTENT = 0x00000002
 _SW_SHOWMINNOACTIVE = 7
+_SW_MINIMIZE = 6
 _SW_SHOWNOACTIVATE = 4
 _SWP_NOZORDER = 0x0004
 _SWP_NOACTIVATE = 0x0010
@@ -270,6 +271,10 @@ if IS_WINDOWS:
             self._u.ShowWindow(hwnd, _SW_SHOWMINNOACTIVE)
 
         def restore(self, hwnd: int) -> None:
+            # Lowering an active window with NOACTIVATE does not release focus.
+            # Let Windows select the next window before restoring behind it.
+            if self._u.GetAncestor(self._u.GetForegroundWindow(), _GA_ROOT) == hwnd:
+                self._u.ShowWindow(hwnd, _SW_MINIMIZE)
             self._u.ShowWindow(hwnd, _SW_SHOWNOACTIVATE)
             if not self._u.SetWindowPos(hwnd, 1, 0, 0, 0, 0,
                                         _SWP_NOACTIVATE | _SWP_NOMOVE | _SWP_NOSIZE):
