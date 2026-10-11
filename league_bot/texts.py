@@ -54,7 +54,7 @@ def macro_list(infos: Sequence[MacroInfo]) -> str:
 def daily_list(macros: Sequence[str], missing: Sequence[str] = ()) -> str:
     if not macros:
         return "A daily esta vazia. Adicione macros com /dailyadd <macro>."
-    lines = [f"Daily ({len(macros)} macro(s), todas rodam, em ordem sorteada a cada execucao):"]
+    lines = [f"Daily ({len(macros)} macro(s); fluxo Slayer respeita dependencias e intervalos):"]
     lines.extend(f"• {name}" + (" (nao existe mais)" if name in missing else "") for name in macros)
     return "\n".join(lines)
 

@@ -42,6 +42,33 @@ Crie uma instância `SlayerGame` por processo e reutilize-a nos handlers. As cha
 
 `start`, `run_macro` e gravação usam o mesmo controlador e podem levantar `GameBusy` quando outra operação está ativa. Trate também `GameError`, `LibraryError` e `MacroError`. Não use `game.stop()` para encerrar uma gravação; use `stop_recording()`.
 
+O controlador genérico bloqueia `pet_guild` e `cubo_de_melhora`: essas duas macros exigem o executor visual de `league_bot.slayer.create_game`, que confere custos, saldo e chances antes de agir.
+
+## Fluxo Slayer da guild
+
+Para o fluxo Slayer atual, use o pacote `league_bot.slayer`, que fornece `SlayerDailyGame` e o factory de daily `create_daily`. Ele adiciona a navegação reconhecida, presença antes das tarefas, plano de 18 macros, tempos de coleta, cubo/pet visuais e progresso persistente. O `build_runner` acima pertence à daily customizada legada, que executa uma lista em ordem aleatória; não use esse runner para `/daily` da guild.
+
+O host deve manter uma instância do jogo e uma instância da daily durante a vida do processo, em vez de recriá-las por comando. Forneça ao factory a configuração do jogo, o backend Win32 e um armazenamento de estado dentro do `SLAYER_DATA_DIR` do host. O estado é local a cada instalação; o adaptador escolhe seu caminho e pode injetar sua própria implementação de status ou posicionamento final da janela. O runtime do pacote continua sem dependências externas; dependências do Telegram pertencem ao host.
+
+No Telegram, associe `/daily` à execução da daily em uma thread para deixar o event loop responsivo; encaminhe `on_event` para mensagens curtas. Associe `/dailystatus` à leitura do estado e `/dailyset "Nome" progresso meta` à atualização de contadores. `/dailyadd` e `/dailyremove` alteram a seleção. `/cancel` deve chamar o cancelamento da daily, que também interrompe a macro atual. Faça as checagens de autorização e restrição de chat no adaptador antes de cada handler, e mantenha o token no host.
+
+Exemplo de construção (os handlers devem ser ligados ao framework Telegram que seu host já usa):
+
+```python
+from league_bot.config import load_settings
+from league_bot.slayer import create_game, create_daily
+from league_bot.winapi import Win32Backend
+
+settings = load_settings(environ=slayer_environment, env_file=None)
+game = create_game(settings, Win32Backend(), status_store=host_status_store,
+                   final_position=host_final_position)
+daily = create_daily(game, settings)
+```
+
+`slayer_environment` deve conter somente opções `SLAYER_*`. Use uma pasta de estado própria do host e preserve a autorização e as credenciais existentes. As chamadas de execução e leitura podem bloquear por acesso ao disco ou automação do jogo; execute-as fora do event loop (`asyncio.to_thread` ou executor do framework). O factory e imports de `league_bot.slayer` são a API compartilhada do fluxo Slayer; ajuste o exemplo se a versão instalada documentar assinaturas diferentes.
+
+Veja [Daily Slayer da guild](daily-flow.md) para a ordem, as repetições, os limites visuais e o comportamento do estado.
+
 ## Adaptador copiável
 
 Salve como, por exemplo, `league_adapter.py` dentro do projeto do bot host. O conjunto de IDs autorizados deve vir da configuração segura do host e conter ao menos um ID. Os comandos têm prefixo `sl` para reduzir colisões com os comandos existentes.
@@ -245,7 +272,7 @@ Adapte os caminhos à sua instalação. Quando o pacote já está instalado, a i
 
 Os comandos desse host existente são `/rec <nome> [anchor] [shots] [force]`, `/recstop`, `/runmacro <nome>` e `/runcancel`. Não copie esse módulo para outro bot sem adaptar suas dependências `lock_manager`, `authorized` e `deny`; use o exemplo genérico acima.
 
-Esse adaptador também oferece `/macros`, `/daily`, `/dailylist`, `/dailyadd <macro>` e `/dailyremove <macro>`. Para adicionar daily a outro host, mantenha uma instância de `build_runner(game, settings)` e execute `daily.run()` em thread; `daily.cancel()` cancela a daily e a macro atual, enquanto `game.cancel()` sozinho não encerra toda a lista.
+Esse adaptador legado também oferece `/macros`, `/daily`, `/dailylist`, `/dailyadd <macro>` e `/dailyremove <macro>`. Para usar a daily Slayer da guild num host existente, construa a instância com `SlayerDailyGame` e o factory `create_daily`, conforme a seção [Fluxo Slayer da guild](#fluxo-slayer-da-guild); `build_runner(game, settings)` continua reservado à lista customizada legada. Execute `daily.run()` em thread e conecte `/cancel` a `daily.cancel()` para interromper tanto a lista quanto a macro atual.
 
 ## Problemas comuns
 

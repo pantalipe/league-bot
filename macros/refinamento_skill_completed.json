@@ -1,0 +1,151 @@
+{
+  "description": "",
+  "window": {
+    "width": 434,
+    "height": 810
+  },
+  "steps": [
+    {
+      "action": "wait_window",
+      "timeout": 30
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "25.92%",
+      "y": "97.72%",
+      "color": [
+        35,
+        34,
+        33
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "25.92%",
+      "y": "97.72%"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.4
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "66.24%",
+      "y": "71.17%",
+      "color": [
+        174,
+        174,
+        173
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "66.24%",
+      "y": "71.17%"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.6
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "48.96%",
+      "y": "89.57%",
+      "color": [
+        246,
+        219,
+        183
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "48.96%",
+      "y": "89.57%"
+    },
+    {
+      "action": "wait",
+      "seconds": 2.7
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "50.81%",
+      "y": "83.27%",
+      "color": [
+        158,
+        126,
+        84
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "50.81%",
+      "y": "83.27%"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.1
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "8.87%",
+      "y": "94.38%",
+      "color": [
+        231,
+        106,
+        98
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "8.87%",
+      "y": "94.38%"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.0
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "28.46%",
+      "y": "96.73%",
+      "color": [
+        255,
+        146,
+        0
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "28.46%",
+      "y": "96.73%"
+    }
+  ],
+  "tags": [
+    "daily",
+    "shared-calibration"
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "description": "",
+  "window": {
+    "width": 434,
+    "height": 810
+  },
+  "steps": [
+    {
+      "action": "wait_window",
+      "timeout": 30
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "42.28%",
+      "y": "96.85%",
+      "color": [
+        63,
+        52,
+        53
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "42.28%",
+      "y": "96.85%"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.9
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "14.63%",
+      "y": "51.3%",
+      "color": [
+        44,
+        34,
+        28
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "14.63%",
+      "y": "51.3%"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.6
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "50.58%",
+      "y": "89.81%",
+      "color": [
+        230,
+        154,
+        57
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "50.58%",
+      "y": "89.81%"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.7
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "51.04%",
+      "y": "82.04%",
+      "color": [
+        96,
+        95,
+        93
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "51.04%",
+      "y": "82.04%"
+    },
+    {
+      "action": "wait",
+      "seconds": 2.5
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "31.45%",
+      "y": "51.3%",
+      "color": [
+        44,
+        34,
+        28
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "31.45%",
+      "y": "51.3%"
+    },
+    {
+      "action": "wait",
+      "seconds": 0.9
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "47.81%",
+      "y": "87.96%",
+      "color": [
+        227,
+        141,
+        30
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "47.81%",
+      "y": "87.96%"
+    },
+    {
+      "action": "wait",
+      "seconds": 2.4
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "49.19%",
+      "y": "82.41%",
+      "color": [
+        150,
+        107,
+        51
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "49.19%",
+      "y": "82.41%"
+    },
+    {
+      "action": "wait",
+      "seconds": 4.3
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "41.59%",
+      "y": "96.98%",
+      "color": [
+        156,
+        105,
+        56
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "41.59%",
+      "y": "96.98%"
+    }
+  ],
+  "tags": [
+    "daily",
+    "shared-calibration"
+  ]
+}

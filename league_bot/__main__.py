@@ -10,7 +10,11 @@ from pathlib import Path
 from typing import List, Optional
 
 from .config import DEFAULT_ENV_FILE, ConfigError, Settings, load_settings
-from .daily import DailyError, build_runner, open_list
+from .daily import DailyError
+from .slayer.api import create_daily as build_runner, open_daily as open_list, create_game, open_library, create_status
+from .slayer.commands import set_progress
+from .slayer.formatting import _format_snapshot
+from .slayer.status import DailyStatusError
 from .game import GameError, SlayerGame
 from .library import LibraryError, MacroLibrary
 from .macro import MacroError, resolve_coord
@@ -60,14 +64,17 @@ def build_parser() -> argparse.ArgumentParser:
     delete = sub.add_parser("delete", help="apaga uma macro local")
     delete.add_argument("name")
 
-    daily = sub.add_parser("daily", help="a daily: lista de macros que rodam todas, em ordem aleatoria a cada vez")
+    daily = sub.add_parser("daily", help="a daily: lista de macros que rodam todas, respeitando dependencias e intervalos")
     daily_sub = daily.add_subparsers(dest="daily_command", required=True)
     daily_sub.add_parser("list", help="mostra as macros da daily")
     daily_add = daily_sub.add_parser("add", help="acrescenta uma macro a daily")
     daily_add.add_argument("name")
     daily_remove = daily_sub.add_parser("remove", help="tira uma macro da daily")
     daily_remove.add_argument("name")
-    daily_sub.add_parser("run", help="roda todas as macros da daily em ordem aleatoria")
+    daily_sub.add_parser("run", help="roda todas as macros da daily respeitando dependencias e intervalos")
+    daily_sub.add_parser("status", help="mostra contadores diarios sem executar o jogo")
+    daily_set = daily_sub.add_parser("set", help="atualiza uma tarefa pelo nome")
+    daily_set.add_argument("values", nargs="+")
     return parser
 
 
@@ -84,7 +91,7 @@ def _backend():
 
 
 def _game(settings: Settings) -> SlayerGame:
-    return SlayerGame(settings, _backend(), log=log.info)
+    return create_game(settings, _backend(), log=log.info)
 
 
 def cmd_check(settings: Settings) -> int:
@@ -129,7 +136,7 @@ def cmd_pixel(settings: Settings, x_spec: str, y_spec: str) -> int:
 
 
 def cmd_record(settings: Settings, args: argparse.Namespace) -> int:
-    library = MacroLibrary(settings.macros_dir)
+    library = open_library(settings)
     library.check_name(args.name)
     if library.find(args.name) is not None and not args.force:
         raise LibraryError(f"Ja existe uma macro chamada '{args.name}'. Escolha outro nome ou use --force.")
@@ -175,7 +182,7 @@ def cmd_record(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def cmd_macros(settings: Settings) -> int:
-    infos = MacroLibrary(settings.macros_dir).list()
+    infos = open_library(settings).list()
     if not infos:
         print("Nenhuma macro.")
         return 0
@@ -190,7 +197,7 @@ def cmd_macros(settings: Settings) -> int:
 
 
 def cmd_show(settings: Settings, name: str) -> int:
-    library = MacroLibrary(settings.macros_dir)
+    library = open_library(settings)
     steps = library.load_steps(name)
     info = next(i for i in library.list() if i.name == name)
     print(f"{name} ({info.source}) - {info.path}")
@@ -204,9 +211,19 @@ def cmd_show(settings: Settings, name: str) -> int:
 
 def cmd_daily(settings: Settings, args: argparse.Namespace) -> int:
     action = args.daily_command
+    if action == "status":
+        print(_format_snapshot(create_status(settings).snapshot()))
+        return 0
+    if action == "set":
+        print(set_progress(create_status(settings), args.values))
+        return 0
     if action == "run":
         runner = build_runner(_game(settings), settings)
-        result = runner.run(on_start=lambda order: print("Ordem de hoje: " + " -> ".join(order)))
+        from .slayer.daily import HomeDailyRunner
+        options = dict(on_start=lambda order: print("Ordem de hoje: " + " -> ".join(order)))
+        if isinstance(runner, HomeDailyRunner):
+            options["on_event"] = print
+        result = runner.run(**options)
         progress = f"{len(result.done)}/{len(result.order)} macro(s) concluidas"
         if result.status == "ok":
             print(f"Daily concluida ({progress}).")
@@ -215,7 +232,7 @@ def cmd_daily(settings: Settings, args: argparse.Namespace) -> int:
         print(f"Daily {word}: {result.error} ({progress})", file=sys.stderr)
         return 1
 
-    daily = open_list(settings, MacroLibrary(settings.macros_dir))
+    daily = open_list(settings, open_library(settings))
     if action == "add":
         daily.add(args.name)
         print(f"'{args.name}' adicionada a daily.")
@@ -226,7 +243,7 @@ def cmd_daily(settings: Settings, args: argparse.Namespace) -> int:
     if not macros:
         print("A daily esta vazia. Adicione macros com: python -m league_bot daily add <macro>")
         return 0
-    print(f"Daily: {len(macros)} macro(s) (todas rodam, em ordem sorteada a cada execucao)")
+    print(f"Daily: {len(macros)} macro(s) (fluxo padrao respeita dependencias e intervalos)")
     for number, name in enumerate(macros, 1):
         print(f"{number:>3}. {name}" + (" (nao existe mais)" if name in missing else ""))
     return 0
@@ -282,11 +299,11 @@ def run(args: argparse.Namespace) -> int:
         if command == "show":
             return cmd_show(settings, args.name)
         if command == "rename":
-            path = MacroLibrary(settings.macros_dir).rename(args.old, args.new)
+            path = open_library(settings).rename(args.old, args.new)
             print(f"'{args.old}' renomeada para '{args.new}' ({path})")
             return 0
         if command == "delete":
-            MacroLibrary(settings.macros_dir).delete(args.name)
+            open_library(settings).delete(args.name)
             print(f"Macro '{args.name}' apagada.")
             return 0
         if command == "daily":
@@ -294,7 +311,7 @@ def run(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:
         print("\nEncerrado.")
         return 0
-    except (ConfigError, GameError, MacroError, LibraryError, RecorderError, DailyError, TelegramError, OSError) as exc:
+    except (ConfigError, GameError, MacroError, LibraryError, RecorderError, DailyError, DailyStatusError, TelegramError, OSError, ValueError) as exc:
         print(f"Erro: {exc}", file=sys.stderr)
         return 1
     return 0

@@ -13,11 +13,17 @@ license-files = ["LICENSE"]
 classifiers = ["Operating System :: Microsoft :: Windows"]
 dependencies = []
 
+[project.optional-dependencies]
+test = ["Pillow>=10", "tzdata"]
+
 [project.scripts]
 league-bot = "league_bot.__main__:main"
 
 [tool.setuptools]
-packages = ["league_bot"]
+packages = ["league_bot", "league_bot.slayer"]
+
+[tool.setuptools.package-data]
+"league_bot.slayer" = ["assets/*.json", "macros/*.json"]
 
 [tool.setuptools.dynamic]
 version = { attr = "league_bot.__version__" }

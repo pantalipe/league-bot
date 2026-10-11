@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Dict, FrozenSet, Mapping, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_ENV_FILE = REPO_ROOT / ".env"
+LOCAL_ROOT = REPO_ROOT if (REPO_ROOT / "macros").is_dir() else Path.home() / ".league-bot"
+DEFAULT_ENV_FILE = LOCAL_ROOT / ".env"
 DEFAULT_LAUNCH_URI = "googleplaygames://launch/?id=com.gear2.growslayer&lid=1&pid=1"
 
 
@@ -79,8 +80,8 @@ class Settings:
     play_games_exe: str = ""
     process_names: Tuple[str, ...] = ("client.exe", "crosvm.exe")
     start_macro: str = "start_game_recognized"
-    macros_dir: Path = REPO_ROOT / "macros"
-    data_dir: Path = REPO_ROOT / "state"  # the daily list and other local state
+    macros_dir: Path = LOCAL_ROOT / "macros"
+    data_dir: Path = LOCAL_ROOT / "state"  # the daily list and other local state
     foreground_input: bool = False
     max_command_age: int = 300
     log_file: str = ""

@@ -1,0 +1,243 @@
+{
+  "description": "",
+  "window": {
+    "width": 434,
+    "height": 810
+  },
+  "steps": [
+    {
+      "action": "wait_window",
+      "timeout": 30
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "94.35%",
+      "y": "21.67%",
+      "color": [
+        220,
+        199,
+        176
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "94.35%",
+      "y": "21.67%"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.3
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "18.32%",
+      "y": "55%",
+      "color": [
+        237,
+        176,
+        54
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "18.32%",
+      "y": "55%"
+    },
+    {
+      "action": "wait",
+      "seconds": 0.6
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "18.32%",
+      "y": "55%",
+      "color": [
+        117,
+        95,
+        52
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "18.32%",
+      "y": "55%"
+    },
+    {
+      "action": "wait",
+      "seconds": 0.7
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "39.98%",
+      "y": "55.62%",
+      "color": [
+        54,
+        47,
+        45
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "39.98%",
+      "y": "55.62%"
+    },
+    {
+      "action": "wait",
+      "seconds": 0.7
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "39.98%",
+      "y": "55.62%",
+      "color": [
+        52,
+        47,
+        45
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "39.98%",
+      "y": "55.62%"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.0
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "61.41%",
+      "y": "54.88%",
+      "color": [
+        134,
+        85,
+        146
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "61.41%",
+      "y": "54.88%"
+    },
+    {
+      "action": "wait",
+      "seconds": 0.7
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "61.41%",
+      "y": "54.88%",
+      "color": [
+        110,
+        75,
+        119
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "61.41%",
+      "y": "54.88%"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.0
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "85.6%",
+      "y": "55.74%",
+      "color": [
+        55,
+        45,
+        41
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "85.6%",
+      "y": "55.74%"
+    },
+    {
+      "action": "wait",
+      "seconds": 0.9
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "85.6%",
+      "y": "55.74%",
+      "color": [
+        53,
+        44,
+        40
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "85.6%",
+      "y": "55.74%"
+    },
+    {
+      "action": "wait",
+      "seconds": 1.5
+    },
+    {
+      "action": "wait_for_pixel",
+      "x": "51.5%",
+      "y": "76.73%",
+      "color": [
+        246,
+        130,
+        130
+      ],
+      "radius": 2,
+      "tolerance": 30,
+      "poll_seconds": 0.5,
+      "timeout": 30
+    },
+    {
+      "action": "click",
+      "x": "51.5%",
+      "y": "76.73%"
+    }
+  ],
+  "tags": [
+    "daily",
+    "shared-calibration"
+  ]
+}

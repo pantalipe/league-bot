@@ -176,6 +176,8 @@ class SlayerGame:
         return "Slayer Legend iniciado e macro de inicio concluida."
 
     def run_macro(self, name: str) -> str:
+        if name in {"pet_guild", "cubo_de_melhora"}:
+            raise GameError("Essa macro exige o fluxo visual de league_bot.slayer.create_game; cliques gravados não serão executados.")
         title = self._title()
         steps = self.load_macro_steps(name)
         with self._exclusive():

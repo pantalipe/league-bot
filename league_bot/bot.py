@@ -6,6 +6,7 @@ to be in ALLOWED_USER_IDS. With an empty list nobody is authorized (fail closed)
 from __future__ import annotations
 
 import logging
+import shlex
 import threading
 import time
 from datetime import datetime
@@ -16,6 +17,11 @@ from .config import Settings
 from .daily import DailyBusy, DailyError, DailyRunner
 from .game import GameBusy, GameError, SlayerGame
 from .macro import MacroError
+from .slayer.api import create_status
+from .slayer.status import DailyStatusError
+from .slayer.commands import set_progress
+from .slayer.formatting import _format_snapshot, _chunks
+from .slayer.daily import HomeDailyRunner
 from .telegram_api import TelegramAPI, TelegramError
 
 log = logging.getLogger("league_bot")
@@ -29,7 +35,9 @@ COMMANDS: List[Tuple[str, str]] = [
     ("cancel", "Cancela a macro em andamento"),
     ("rec", "Grava seus cliques como macro: /rec <nome> [anchor] [shots] [force]"),
     ("recstop", "Termina a gravacao"),
-    ("daily", "Roda todas as macros da daily em ordem aleatoria"),
+    ("daily", "Roda todas as macros da daily respeitando dependencias e intervalos"),
+    ("dailystatus", "Mostra os contadores diarios"),
+    ("dailyset", "Atualiza uma tarefa: /dailyset Nome progresso meta"),
     ("dailylist", "Mostra as macros da daily"),
     ("dailyadd", "Acrescenta uma macro a daily: /dailyadd <macro>"),
     ("dailyremove", "Tira uma macro da daily: /dailyremove <macro>"),
@@ -47,7 +55,9 @@ HELP_TEXT = (
     "/cancel - cancela a macro em andamento\n"
     "/rec <nome> [anchor] [shots] [force] - grava seus cliques como macro (termina com F10 ou /recstop)\n"
     "/recstop - termina a gravacao\n"
-    "/daily - roda todas as macros da daily, em ordem aleatoria\n"
+    "/daily - roda todas as macros da daily, respeitando dependencias e intervalos\n"
+    "/dailystatus - contadores por tarefa e proximo reset\n"
+    "/dailyset \"Nome\" progresso meta - atualiza uma tarefa\n"
     "/dailylist - mostra as macros da daily\n"
     "/dailyadd <macro> - acrescenta uma macro a daily\n"
     "/dailyremove <macro> - tira uma macro da daily\n"
@@ -74,6 +84,7 @@ class LeagueBot:
                  clock: Callable[[], float] = time.time, daily: Optional[DailyRunner] = None) -> None:
         self._settings = settings
         self._daily = daily
+        self._status_store = getattr(game, "_status_store", None) or create_status(settings)
         self._api = api
         self._game = game
         self._clock = clock
@@ -90,6 +101,8 @@ class LeagueBot:
             "rec": self._cmd_rec,
             "recstop": self._cmd_recstop,
             "daily": self._cmd_daily,
+            "dailystatus": self._cmd_dailystatus,
+            "dailyset": self._cmd_dailyset,
             "dailylist": self._cmd_dailylist,
             "dailyadd": self._cmd_dailyadd,
             "dailyremove": self._cmd_dailyremove,
@@ -137,7 +150,7 @@ class LeagueBot:
             handler(chat_id, args)
         except (GameBusy, DailyBusy) as exc:
             self._reply(chat_id, f"⏳ {exc}")
-        except (GameError, MacroError, DailyError) as exc:
+        except (GameError, MacroError, DailyError, DailyStatusError, ValueError) as exc:
             self._reply(chat_id, f"❌ {exc}")
         except Exception:
             log.exception("unexpected error handling /%s", command)
@@ -180,7 +193,8 @@ class LeagueBot:
             self._reply(chat_id, f"Uso: /macro <nome>\nDisponiveis: {names}")
             return
         self._reply(chat_id, f"▶️ Rodando macro '{args[0]}'...")
-        self._reply(chat_id, "✅ " + self._game.run_macro(args[0]))
+        result = self._game.run_macro(args[0])
+        self._reply(chat_id, ("⏭️ " if getattr(result, "skipped", False) else "✅ ") + str(result))
 
     def _cmd_rec(self, chat_id: int, args: List[str]) -> None:
         if not args:
@@ -216,10 +230,20 @@ class LeagueBot:
 
     def _cmd_daily(self, chat_id: int, args: List[str]) -> None:
         daily = self._require_daily()
-        result = daily.run(on_start=lambda order: self._reply(chat_id, texts.daily_started(order)))
+        options = dict(on_start=lambda order: self._reply(chat_id, texts.daily_started(order)))
+        if isinstance(daily, HomeDailyRunner):
+            options["on_event"] = lambda message: self._reply(chat_id, message)
+        result = daily.run(**options)
         self._reply(chat_id, texts.daily_result(result))
         if result.frame is not None:
             self._send_frame(chat_id, result.frame, "🖼️ Tela ao fim da daily")
+
+    def _cmd_dailystatus(self, chat_id: int, args: List[str]) -> None:
+        for part in _chunks(_format_snapshot(self._status_store.snapshot())):
+            self._reply(chat_id, part)
+
+    def _cmd_dailyset(self, chat_id: int, args: List[str]) -> None:
+        self._reply(chat_id, set_progress(self._status_store, shlex.split(" ".join(args))))
 
     def _cmd_dailylist(self, chat_id: int, args: List[str]) -> None:
         daily = self._require_daily()

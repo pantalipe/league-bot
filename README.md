@@ -1,6 +1,6 @@
 # league-bot
 
-Controle o **Slayer Legend no Google Play Games para PC** pelo Telegram: abra o jogo, veja a tela, grave sequências de cliques, repita missões e organize uma daily. Projeto aberto feito para os membros da guild, com **Python e biblioteca padrão**, sem dependências externas no bot próprio.
+Controle o **Slayer Legend no Google Play Games para PC** pelo Telegram ou pela linha de comando. O pacote `league_bot.slayer` inclui uma daily Slayer pronta para a guild, além de navegação reconhecida, presença, cubo, pet e acompanhamento local. O runtime próprio usa **Python e biblioteca padrão**, sem dependências externas.
 
 Você pode usar o bot pronto ou incorporar a biblioteca `league_bot` ao seu bot do Telegram. Cada instalação controla o jogo **no computador em que o Python está rodando**.
 
@@ -12,6 +12,7 @@ Você pode usar o bot pronto ou incorporar a biblioteca `league_bot` ao seu bot 
 |---|---|
 | Criar um bot dedicado ao Slayer Legend | [Instalação do bot próprio](#instalação-do-bot-próprio) |
 | Usar o jogo no bot do Telegram que já possui | [Guia de integração](docs/telegram-integration.md) |
+| Entender e configurar a daily Slayer da guild | [Fluxo da daily](docs/daily-flow.md) |
 | Gravar e executar sem Telegram | [Primeira macro](#gravando-sua-primeira-macro) e [linha de comando](#linha-de-comando) |
 
 ## Requisitos
@@ -99,10 +100,9 @@ Os cliques usam segundo plano por padrão, pela janela interna do emulador, sem 
 | `/cancel` | Interrompe a macro ou daily em andamento |
 | `/rec <nome> [anchor] [shots] [force]` | Grava cliques; as opções podem ser combinadas |
 | `/recstop` | Termina a gravação e salva a macro |
-| `/daily` | Executa todas as macros da daily, em ordem sorteada |
-| `/dailylist` | Mostra as macros da daily |
-| `/dailyadd <macro>` | Acrescenta uma macro à daily |
-| `/dailyremove <macro>` | Tira uma macro da daily |
+| `/daily` | Executa o fluxo Slayer configurado: presença primeiro e plano na ordem de dependências |
+| `/dailystatus` | Mostra progresso e tarefas persistidas da daily |
+| `/dailyset "Nome" <progresso> [meta]` | Atualiza uma tarefa pelo nome |
 | `/id` | Informa seu ID de usuário; disponível sem autorização |
 
 **`/stopgame` fecha o Google Play Games inteiro**, inclusive outros jogos abertos nele. Os processos padrão são `client.exe` e `crosvm.exe`.
@@ -217,33 +217,15 @@ Copy-Item macros/start_game.json macros/local/start_game.json
 
 Edite a cópia local. Os cliques são reais e podem mover o mouse ou trazer a janela para frente. Evite usar o mouse em paralelo; `/cancel` interrompe uma macro em andamento.
 
-## Organizando a daily
+## Daily Slayer
 
-A daily roda **todas** as macros cadastradas, uma após outra, em ordem sorteada. Com duas ou mais entradas, evita repetir a ordem anterior. Ela roda quando você pede, sem agendamento automático.
+A instalação oferece um plano Slayer de guild com 18 macros. Ele começa pela verificação de presença e segue as dependências do plano; veja [o fluxo, custos e comandos](docs/daily-flow.md). Use `/dailyadd` e `/dailyremove` para escolher atividades, `/dailyset` para atualizar contadores e `/dailystatus` para consultar o estado salvo. A execução é manual: não há agendamento automático. `/cancel` interrompe a atividade atual e as esperas; a próxima `/daily` retoma os contadores do mesmo ciclo.
 
-Teste cada macro sozinha. Como a ordem muda, faça as macros começarem e terminarem numa tela compatível, como o menu principal; não faça uma depender da missão anterior.
-
-```text
-/dailyadd quest_1
-/dailyadd quest_2
-/dailylist
-/daily
-```
-
-```powershell
-python -m league_bot daily add quest_1
-python -m league_bot daily add quest_2
-python -m league_bot daily list
-python -m league_bot daily run
-```
-
-Se o jogo estiver fechado, a daily tenta abri-lo com a macro de início. Se uma macro falhar, para e informa quais terminaram. `/cancel` interrompe a daily e a macro atual. Ao fim, o bot próprio envia o resultado e tenta capturar a tela do jogo.
-
-A lista fica em `state/daily.json`, ou na pasta `SLAYER_DATA_DIR`. Remover uma entrada da daily não apaga a macro.
+A CLI usa o mesmo fluxo: `python -m league_bot daily run` executa a daily Slayer, `daily list/add/remove` consulta e altera a seleção, `daily status` mostra o acompanhamento e `daily set "Caverna" 1 3` registra progresso. Bibliotecas personalizadas que não contêm o catálogo completo mantêm o executor genérico anterior. A API `league_bot.daily.build_runner` também continua disponível para integrações genéricas.
 
 ## Compartilhando com a guild
 
-Compartilhe somente o JSON da macro desejada. A outra pessoa pode colocá-lo em `macros/local/`, voltar à tela de partida e testar antes de incluí-lo na daily. Layout, idioma, avisos e progresso da conta podem exigir adaptações mesmo com coordenadas em porcentagem.
+Macros gravadas representam cliques reais de uma conta e de um layout específicos. Valide cada gravação ao vivo no próprio jogo, confira tela inicial/final, coordenadas, avisos e custos antes de usá-la no plano. Não trate uma gravação compartilhada como validada: calibragem e validação ao vivo são responsabilidade de quem instala.
 
 `macros/local/` e `state/` são pessoais e ignorados pelo Git. Os prints também ficam na pasta local. O `.env` contém credenciais e não deve ser compartilhado. Para contribuir uma macro, coloque uma cópia revisada em `macros/` com descrição da tela de partida e do que ela faz.
 
@@ -267,7 +249,7 @@ Comentários no `.env` devem ocupar uma linha própria, começando por `#`; come
 | `SLAYER_PROCESS_NAMES` | Processos consultados/fechados; `client.exe,crosvm.exe` |
 | `SLAYER_START_MACRO` | Nome da macro de início; `start_game_recognized`. `start_game` conserva a sequência antiga |
 | `SLAYER_MACROS_DIR` | Macros compartilhadas; padrão `macros/` na instalação, com subpasta `local/` |
-| `SLAYER_DATA_DIR` | Estado da daily; padrão `state/` na instalação |
+| `SLAYER_DATA_DIR` | Estado local da instalação (daily Slayer e progresso); padrão `state/` |
 | `SLAYER_FOREGROUND_INPUT` | `0` (padrão) envia cliques à janela interna do emulador sem foco; `1` usa o mouse real. Não há fallback automático |
 | `SLAYER_MAX_COMMAND_AGE` | Bot próprio ignora comandos com mais de 300 segundos; `0` desativa o limite |
 | `SLAYER_LOG_FILE` | Arquivo opcional de log; padrão sem arquivo |
@@ -288,7 +270,8 @@ Os seguintes comandos funcionam sem iniciar o bot do Telegram:
 | `macro <nome>` | Executa macro |
 | `macros` / `show <nome>` | Lista macros / mostra passos numerados |
 | `rename <antigo> <novo>` / `delete <nome>` | Renomeia/apaga somente macros locais |
-| `daily list`, `daily add <nome>`, `daily remove <nome>`, `daily run` | Consulta, edita ou executa a daily |
+| `daily status`, `daily set "Nome" <progresso> [meta]` | Consulta e atualiza os contadores da daily Slayer |
+| `daily list`, `daily add <nome>`, `daily remove <nome>`, `daily run` | Consulta, edita ou executa a seleção diária |
 
 `run` é o padrão se você omitir o comando. `python -m league_bot --help` mostra a ajuda completa. `/cancel` cancela execuções no processo do bot; não cancela um comando `macro` num terminal separado.
 
