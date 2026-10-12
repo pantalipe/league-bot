@@ -11,6 +11,8 @@ def load_screens():
 def home_step():
     from .navigation import load_daily_navigation, load_attendance_screens
     screens = load_screens()
+    from .orb import recovery_screens
+    screens.extend(recovery_screens())
     from .equipment import equipment_screen
     equipment = equipment_screen()
     equipment["name"] = "home_close_equipment"

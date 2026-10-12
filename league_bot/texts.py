@@ -68,6 +68,9 @@ def daily_result(result: "DailyResult") -> str:
     done = ", ".join(result.done) or "nenhuma"
     if result.status == "ok":
         return f"✅ Daily concluida ({len(result.done)} macro(s)).\nOrdem: {order}"
+    if result.status == "partial":
+        pending = ", ".join(getattr(result, "pending", ())) or "ver mensagens anteriores"
+        return f"⚠️ Daily encerrada com pendencias: {pending}.\nConcluidas: {done}\nOrdem: {order}"
     if result.status == "cancelled":
         return f"🛑 Daily cancelada. Concluidas: {done}.\nOrdem: {order}"
     return f"❌ Daily falhou: {result.error}\nConcluidas: {done}\nOrdem: {order}"

@@ -18,6 +18,9 @@ class SlayerDailyGame(SlayerGame):
         self._library = open_library(self._settings)
 
     def run_macro(self, name):
+        if name == "blorb":
+            from .orb import run_orb
+            return run_orb(self)
         if name == "pet_guild":
             from .pet import run_pet
             return run_pet(self)
@@ -25,6 +28,17 @@ class SlayerDailyGame(SlayerGame):
             from .cube import run_cube
             return run_cube(self)
         return super().run_macro(name)
+
+    def recover_home(self):
+        """Recover through recognized navigation only, never reward controls."""
+        from .home import home_step
+        steps = [{"action": "wait_window", "timeout": 5},
+                 {"action": "prepare_window"},
+                 {"action": "move_resize", "width": 438, "height": 814},
+                 home_step(), *self.final_steps()]
+        with self._exclusive():
+            self._run_steps(steps, "daily_recovery", self._title())
+        return True
 
     def _run_observed_steps(self, steps, name, title):
         previous_log = self._log

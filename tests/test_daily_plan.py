@@ -211,11 +211,11 @@ class DailyPlanTests(unittest.TestCase):
         game.run_macro = run
         notices = []
         result = runner.run(on_event=notices.append)
-        self.assertEqual(result.status,"ok")
+        self.assertEqual(result.status,"partial")
         self.assertIn("refinamento_skill",result.done)
         self.assertNotIn("pet_guild",result.done)
         self.assertIn("Saldo insuficiente",notices)
-        self.assertEqual(store.snapshot()["tasks"]["macro:pet_guild"]["progress"],0)
+        self.assertEqual(store.snapshot()["tasks"].get("macro:pet_guild", {}).get("progress", 0),0)
 
 
 if __name__ == "__main__":

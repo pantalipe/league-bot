@@ -5,7 +5,7 @@ O pacote `league_bot.slayer` oferece uma seleção padrão de 18 macros para Sla
 ## O que a execução faz
 
 1. Confere a seleção, dependências e o estado salvo. Verifica presença primeiro e, se necessário, inicia o jogo. Avisos de ativação dos bônus de scrolls e montaria são enviados antes das respectivas macros.
-2. Executa Blorb três vezes, com intervalo mínimo de cinco minutos, e WPACS três vezes, com intervalo mínimo de dez minutos. Essas coletas começam cedo para que os intervalos avancem enquanto as outras tarefas selecionadas são executadas. A coleta de diárias final fica para depois de suas dependências.
+2. Black Orb reconhece a coleta gratuita e as duas coletas com vídeo pelos contadores e botões observados. Cada tentativa usa um único clique e só registra uma coleta após confirmar o incremento do contador. O intervalo mínimo entre coletas confirmadas é de cinco minutos; um temporizador ativo deixa a coleta pendente para a próxima daily. O estado que oferece penas após as duas coletas com vídeo encerra a tarefa sem compra. WPACS executa três vezes, com intervalo mínimo de dez minutos. Essas coletas começam cedo para que os intervalos avancem durante outras tarefas. A coleta de diárias final fica para depois de suas dependências.
 3. As demais macros seguem os estágios e dependências do plano. O fluxo visual do Cubo da Melhora usa até três entradas gratuitas; não clica em uma entrada que exija penas.
 4. O pet tem uma limpeza gratuita e quatro pagas: 100, 200, 300 e 400 diamantes (1.000 no total). Antes de cada limpeza paga, exige duas leituras iguais do saldo e orçamento para **todas** as limpezas restantes. Se faltar saldo, preserva o progresso, avisa e continua a daily. Se a tela, o custo ou o saldo forem desconhecidos, interrompe a daily sem novo gasto. O contador visual seguinte confirma cada limpeza.
 5. O progresso de tarefas é salvo em disco no diretório `SLAYER_DATA_DIR` da instalação e é carregado novamente nas próximas consultas/execuções. O ciclo diário troca às 02:00 no fuso UTC−03:00. Essa troca é lazy: ocorre quando a aplicação lê ou atualiza o estado, sem timer ou ação de jogo em segundo plano.
@@ -33,6 +33,15 @@ python -m unittest discover -s tests -t .
 O núcleo de runtime não exige Pillow nem outras dependências externas. Pillow é usado somente pelas ferramentas de calibração e por verificações que comparam imagens. O comando de testes não controla uma janela real; a validação de uma gravação exige o jogo aberto no PC de destino.
 
 ## Gravações e validação
+
+Uma falha visual interrompe aquela tarefa e salva o diagnóstico. A daily tenta
+voltar à tela principal usando somente controles de navegação em telas
+reconhecidas, incluindo Equipment e os painéis Black Orb. Se confirmar a
+recuperação, continua as tarefas independentes e informa as pendências no
+resultado final. Se não reconhecer uma saída segura, encerra a daily.
+Dependências pendentes impedem suas tarefas dependentes. Cancelamento nunca
+aciona recuperação. Tentativas adiadas não incrementam contadores nem mudam
+o horário da última coleta confirmada.
 
 A retomada reconhece o painel Equipment (armas ou acessórios) e fecha-o pela
 própria aba, confirmando a tela principal antes de verificar a presença.
