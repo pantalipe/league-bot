@@ -255,7 +255,7 @@ class OrbDailyOutcomeTests(unittest.TestCase):
 
         self.assertEqual(result.status, "failed")
         self.assertEqual(recoveries, ["home"])
-        self.assertNotIn("refinamento_skill", game.calls)
+        self.assertEqual(game.calls[-1], "free_item_shop")
         self.assertIn("recuperação falhou", result.error)
 
     def test_cancellation_does_not_attempt_home_recovery(self):
@@ -270,7 +270,7 @@ class OrbDailyOutcomeTests(unittest.TestCase):
 
         self.assertEqual(result.status, "cancelled")
         self.assertEqual(recoveries, [])
-        self.assertNotIn("refinamento_skill", game.calls)
+        self.assertEqual(game.calls[-1], "free_item_shop")
 
     def test_failed_activation_blocks_bonus_dependent_but_other_work_continues(self):
         def handler(name):

@@ -117,7 +117,7 @@ class DailyPlanTests(unittest.TestCase):
         return runner, store, game, clock
 
     def test_default_plan_excludes_diamond_pet_and_finishes_with_daily_collection(self):
-        self.assertEqual(len(DEFAULT_MACROS), 18)
+        self.assertEqual(len(DEFAULT_MACROS), 20)
         self.assertIn("pet_guild", DEFAULT_MACROS)
         ordered = ordered_macros(DEFAULT_MACROS)
         self.assertLess(ordered.index("ativar_scrolls"), ordered.index("cubo_de_melhora"))
@@ -161,7 +161,8 @@ class DailyPlanTests(unittest.TestCase):
         self.assertTrue(all((b - a).total_seconds() >= 600 for a, b in zip(wpacs_times, wpacs_times[1:])))
         self.assertIn("Ativando os bônus diários: scrolls.", notices)
         self.assertIn("Ativando os bônus diários: montaria.", notices)
-        self.assertLess(macro_calls.index("ativar_scrolls"), macro_calls.index("blorb", 1))
+        blorb_indices = [i for i, name in enumerate(macro_calls) if name == "blorb"]
+        self.assertLess(macro_calls.index("ativar_scrolls"), blorb_indices[1])
 
     def test_completed_repeat_is_skipped(self):
         runner, store, game, _ = self.make_runner(["blorb"])
@@ -197,7 +198,9 @@ class DailyPlanTests(unittest.TestCase):
                                                 clock=clock, game=game)
         result = runner.run()
         self.assertEqual(result.status, "cancelled")
-        self.assertEqual(game.calls, [ATTENDANCE_MACRO, "ativar_scrolls"])
+        self.assertEqual(game.calls[0], ATTENDANCE_MACRO)
+        self.assertEqual(game.calls[-1], "ativar_scrolls")
+        self.assertTrue(set(game.calls[1:]).issubset({"montar_besta", "ativar_scrolls"}))
         self.assertNotIn("macro:ativar_scrolls", store.snapshot()["tasks"])
 
     def test_pet_insufficient_balance_keeps_daily_running(self):

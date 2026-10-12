@@ -1,0 +1,26 @@
+{
+  "quest_repeat": {
+    "name": "quest_repeat",
+    "anchors": [
+      {"x": 0.12702194, "y": 0.25834363, "color": [132, 126, 118], "tolerance": 22, "radius": 0},
+      {"x": 0.15011547, "y": 0.25834363, "color": [99, 90, 80], "tolerance": 26, "radius": 0},
+      {"x": 0.90069284, "y": 0.25339926, "color": [142, 135, 129], "tolerance": 25, "radius": 0},
+      {"x": 0.43879908, "y": 0.30284302, "color": [238, 237, 237], "tolerance": 22, "radius": 0},
+      {"x": 0.47344111, "y": 0.30284302, "color": [227, 226, 226], "tolerance": 24, "radius": 0},
+      {"x": 0.18475751, "y": 0.30284302, "color": [142, 136, 130], "tolerance": 30, "radius": 0}
+    ],
+    "click": {"x": 95, "y": 246},
+    "max_clicks": 1
+  },
+  "quest_daily": {
+    "name": "quest_daily",
+    "anchors": [
+      {"x": 0.12702194, "y": 0.25834363, "color": [132, 126, 118], "tolerance": 22, "radius": 0},
+      {"x": 0.15011547, "y": 0.25834363, "color": [99, 90, 80], "tolerance": 26, "radius": 0},
+      {"x": 0.90069284, "y": 0.25339926, "color": [142, 135, 129], "tolerance": 25, "radius": 0},
+      {"x": 0.18475751, "y": 0.30284302, "color": [255, 255, 255], "tolerance": 25, "radius": 0},
+      {"x": 0.25404157, "y": 0.30284302, "color": [228, 227, 226], "tolerance": 28, "radius": 0},
+      {"x": 0.43879908, "y": 0.30284302, "color": [134, 128, 121], "tolerance": 28, "radius": 0}
+    ]
+  }
+}

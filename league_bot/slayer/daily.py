@@ -126,8 +126,9 @@ class HomeDailyRunner(DailyRunner):
                 task = (snapshot or {}).get("tasks", {}).get("macro:" + name, {})
                 remaining[name] = max(0, target - task.get("progress", 0))
 
-            deferred = [name for name in plan if name == FINISHED_DAILIES]
-            for name in (name for name in plan if name != FINISHED_DAILIES):
+            final_tasks = {FINISHED_DAILIES, "refinamento_skill_completed"}
+            deferred = [name for name in plan if name in final_tasks]
+            for name in (name for name in plan if name not in final_tasks):
                 if self._cancelled.is_set():
                     raise MacroCancelled("daily cancelled")
                 if name in REPEATED_MACROS:
@@ -174,7 +175,7 @@ class HomeDailyRunner(DailyRunner):
                 current_task = "macro:" + name
                 if self._is_complete(name, snapshot):
                     continue
-                if any(dep in pending for dep in FINISHED_DAILY_DEPENDENCIES):
+                if name == FINISHED_DAILIES and any(dep in pending for dep in FINISHED_DAILY_DEPENDENCIES):
                     pending.append(name)
                     self._notify(on_event, f"{name}: pendente porque uma coleta obrigatória não terminou.")
                     continue
@@ -213,6 +214,15 @@ class HomeDailyRunner(DailyRunner):
 
     def _run_tracked(self, name, cycle, done, on_event):
         self._check_cancelled(cycle)
+        if name == "refinamento_skill_completed" and self._status_store:
+            task = self._status_store.snapshot().get("tasks", {}).get("macro:refinamento_skill", {})
+            timestamp = task.get("last_completed_at")
+            if timestamp:
+                started = datetime.fromisoformat(timestamp).astimezone(BR_TZ)
+                if self._clock_now() < started + timedelta(minutes=10):
+                    result = DeferredOutcome("Refinamento ainda em andamento; coleta pendente para a próxima daily.")
+                    self._notify(on_event, str(result))
+                    return result
         if name in ACTIVATIONS:
             message = "Ativando os bônus diários: " + ("scrolls" if name == "ativar_scrolls" else "montaria") + "."
             self._notify(on_event, message)
@@ -237,6 +247,12 @@ class HomeDailyRunner(DailyRunner):
             self._check_cancelled(cycle)
             result = DeferredOutcome(f"{name}: falhou e ficou pendente; tela principal recuperada. {exc}")
         self._check_cancelled(cycle)
+        from .shop import ShopOutcome
+        if isinstance(result, ShopOutcome):
+            self._notify(on_event, str(result))
+            if result.progress == 20:
+                done.append(name)
+            return result
         from .orb import OrbOutcome
         if isinstance(result, OrbOutcome):
             if self._status_store and not result.recorded:

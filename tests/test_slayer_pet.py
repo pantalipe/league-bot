@@ -233,9 +233,53 @@ class PetPolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(MacroError, "desconhecido; nenhum gasto autorizado"):
                 PetRunner._counter(runner, 7)
 
+    def test_live_free_counter_and_button_color_are_recognized_without_relaxing_paid_states(self):
+        live = png_frame(FIXTURES / "pet_0_live.png")
+        data = slayer_pet.load_screens()
+        candidates = [next(screen for screen in data if screen["name"] == f"pet_{n}")
+                      for n in range(6)]
+        self.assertEqual(slayer_pet.matching_screens(live, candidates), ["pet_0"])
+        paid = next(screen for screen in data if screen["name"] == "pet_1")
+        self.assertTrue(all(anchor["tolerance"] == 10 for anchor in paid["anchors"]))
+        time = FakeTime()
+        runner = PetRunner(FakeBackend([live, live]), "Slayer Legend", foreground=False,
+                           sleep=time.sleep, clock=time.clock, balance_reader=lambda _frame: 0)
+        runner._last_frame = live
+        _hwnd, progress = runner._counter(7)
+        self.assertEqual(progress, 0)
+        self.assertEqual(runner._backend.click_log, [])
+
 
 @unittest.skipUnless(la.available(), "league_bot nao encontrado (LEAGUE_BOT_DIR)")
 class PetCalibratedScreenTests(unittest.TestCase):
+    def test_guild_pet_navigation_retries_once_after_three_seconds(self):
+        guild_frame = png_frame(FIXTURES / "guild.png")
+        backend = FakeBackend([guild_frame])
+        time = FakeTime()
+        runner = PetRunner(backend, "Slayer Legend", foreground=True,
+                           sleep=time.sleep, clock=time.clock, balance_reader=lambda _frame: 0)
+        guild = copy.deepcopy(runner.profiles["guild"])
+        pet_open = runner.profiles["pet_open"]
+        # Keep the introductory navigation at its already-reached guild
+        # terminal, then model one missed tab click followed by success.
+        with mock.patch("league_bot.slayer.guild_navigation.guild_entry_step",
+                        return_value={"terminal": "guild", "screens": [guild]}):
+            def matching(_frame, screens):
+                names = {screen["name"] for screen in screens}
+                if "pet_open" not in names:
+                    return ["guild"]
+                if len(backend.click_log) >= 2:
+                    return ["pet_open"]
+                return ["guild"]
+
+            with mock.patch("league_bot.macro.matching_screens", side_effect=matching):
+                runner._enter(7)
+
+        self.assertEqual(backend.click_log, [(181, 773, False), (181, 773, False)])
+        self.assertGreaterEqual(time.now, 3)
+        self.assertEqual(runner.profiles["pet_0"].get("max_clicks", 1), 1)
+        self.assertNotIn("retry_after_seconds", runner.profiles["pet_0"])
+
     def test_changed_cost_does_not_authorize_paid_click(self):
         from league_bot.screens import matching_screens
         from PIL import ImageDraw
@@ -267,6 +311,32 @@ class PetCalibratedScreenTests(unittest.TestCase):
                         and screen["name"][4:].isdigit()]
             self.assertEqual(matching_screens(frame, counters), [f"pet_{number}"])
         self.assertEqual(matching_screens(png_frame(FIXTURES / "reward.png"), profiles), ["reward"])
+
+    def test_live_reward_fixture_uniquely_matches_and_confirmation_is_bounded(self):
+        from league_bot.screens import matching_screens
+
+        profiles = slayer_pet.load_screens()
+        reward = next(screen for screen in profiles if screen["name"] == "reward")
+        live = png_frame(FIXTURES / "reward_confirm_live.png")
+        self.assertEqual(matching_screens(live, profiles), ["reward"])
+        self.assertEqual(reward["click"], {"x": 216, "y": 660})
+        self.assertEqual(reward["max_clicks"], 2)
+        self.assertEqual(reward["retry_after_seconds"], 2.0)
+
+        # Reward remains visible after the first confirmation, then the claimed
+        # counter appears. The screen-flow may retry only that recognized modal.
+        frames = [live] * 8 + [
+                  png_frame(FIXTURES / "pet_1.png"),
+                  png_frame(FIXTURES / "pet_1.png")]
+        backend = FakeBackend(frames)
+        time = FakeTime()
+        runner = PetRunner(backend, "Slayer Legend", foreground=True,
+                           sleep=time.sleep, clock=time.clock, balance_reader=lambda _frame: 0)
+        step = {"action": "screen_flow", "terminal": "pet_1", "timeout": 8,
+                "poll_seconds": .5, "stable_frames": 2, "frame_size": [WIDTH, HEIGHT],
+                "screens": [reward, next(s for s in profiles if s["name"] == "pet_1")]}
+        runner.run([step])
+        self.assertEqual(backend.click_log, [(216, 660, False), (216, 660, False)])
 
     def test_persistent_paid_counter_fixture_is_clicked_at_most_once_by_real_screen_flow(self):
         profile = copy.deepcopy(next(s for s in slayer_pet.load_screens() if s["name"] == "pet_1"))

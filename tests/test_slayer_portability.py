@@ -81,13 +81,13 @@ from league_bot.slayer.plan import DEFAULT_MACROS
 settings = replace(Settings(), data_dir=Path.cwd()/"local-state", window_title="Slayer Legend")
 game = create_game(settings, object())
 daily = create_daily(game, settings)
-assert daily.macros()[0] == "attendance_check" and len(daily.macros()) == 19 and not daily.missing()
+assert daily.macros()[0] == "attendance_check" and len(daily.macros()) == 21 and not daily.missing()
 for name in (*DEFAULT_MACROS, "start_game_recognized"):
     validate_steps(game.load_macro_steps(name))
 assert "PIL" not in sys.modules and "league_adapter" not in sys.modules
 assert not any("panda-home-bot" in str(m.__file__) for m in list(sys.modules.values())
                if getattr(m, "__file__", None))
-print("standalone stdlib: 18 macros validated")
+print("standalone stdlib: 20 macros validated")
 '''
         result = subprocess.run([sys.executable, "-S", "-c", script], cwd=self.root,
                                 capture_output=True, text=True, timeout=30)

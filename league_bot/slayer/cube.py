@@ -46,7 +46,9 @@ def load_screens():
 def cube_steps():
     from .home import home_step
     screens = {s["name"]: s for s in load_screens()}
-    main = copy.deepcopy(screens["main"])
+    from .dungeon_navigation import dungeon_entry_step
+    dungeon_nav = dungeon_entry_step()
+    main = copy.deepcopy(next(s for s in home_step()['screens'] if s['name']=='main'))
     main["click"] = {"x": 331, "y": 784}
     main["max_clicks"] = 1
     # Title-only entry observation. Check the counter in a separate flow before Enter.
@@ -56,15 +58,17 @@ def cube_steps():
     flow = dict(action="screen_flow", poll_seconds=.3, stable_frames=2, frame_size=[434,810])
     back = copy.deepcopy(screens["rift_exhausted"])
     back["click"] = {"x":45,"y":775}
-    dungeon = copy.deepcopy(screens["dungeon"])
+    dungeon = copy.deepcopy(next(s for s in dungeon_nav['screens'] if s['name']=='dungeon_ready'))
     dungeon["click"] = {"x":325,"y":784}
+    main.pop('click', None)
     return [
         {"action":"wait_window","timeout":5}, {"action":"prepare_window"},
         {"action":"move_resize","width":438,"height":814},
         home_step(),
-        dict(flow,timeout=40,terminal="rift_open",screens=[main,screens["adventure"],screens["dungeon"],rift]),
+        dungeon_nav,
+        dict(flow,timeout=40,terminal="rift_open",screens=[dict(copy.deepcopy(dungeon),click=screens['dungeon']['click']),rift]),
         dict(flow,timeout=360,terminal="rift_exhausted",screens=[screens["rift_free"],screens["multiplier"],screens["rift_exhausted"]]),
-        dict(flow,timeout=40,terminal="main",screens=[back,dungeon,screens["main"]]),
+        dict(flow,timeout=40,terminal="main",screens=[back,dungeon,main]),
         {"action":"move_resize","width":438,"height":814},
         {"action":"minimize"},
     ]

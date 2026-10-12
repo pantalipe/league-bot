@@ -1,23 +1,52 @@
 """Shared Slayer game flows; host input guard, status and placement are injected."""
 import copy
 import logging
+import random
 from league_bot.game import SlayerGame, GameError
 from league_bot.macro import MacroCancelled, MacroError
 from .status import DailyStatusError
 from .navigation import load_daily_navigation, load_attendance_screens
+from .pacing import ClickPacedBackend, normalize_delay_range
 logger = logging.getLogger(__name__)
 
 class SlayerDailyGame(SlayerGame):
     """Recognize attendance and daily flows with caller-owned state/placement."""
 
-    def __init__(self, *args, status_store=None, final_position=None, **kwargs):
+    def __init__(self, *args, status_store=None, final_position=None,
+                 action_rng=None, click_delay_range=(0, 0), **kwargs):
+        self._action_rng = action_rng if action_rng is not None else random.Random()
+        self._click_delay_range = normalize_delay_range(click_delay_range)
         super().__init__(*args, **kwargs)
         self._status_store = status_store
         self._final_position = final_position
         from .api import open_library
         self._library = open_library(self._settings)
 
+    def _pause_before_click(self, seconds):
+        runner = self._runner
+        pause = getattr(runner, "_pause", None)
+        if not callable(pause):
+            raise GameError("Pacing de clique exige um runner visual cancelavel.")
+        pause(seconds)
+
+    def _run_steps(self, steps, name, title):
+        if self._click_delay_range[1] == 0:
+            return super()._run_steps(steps, name, title)
+        original_backend = self._backend
+        self._backend = ClickPacedBackend(original_backend, rng=self._action_rng,
+            pause=self._pause_before_click, delay_range=self._click_delay_range)
+        try:
+            return super()._run_steps(steps, name, title)
+        finally:
+            self._backend = original_backend
+
     def run_macro(self, name):
+        if name == "mailbox":
+            from .mailbox import run_mailbox
+            return run_mailbox(self)
+        if name == "free_item_shop":
+            from .shop import run_shop
+            return run_shop(self)
         if name == "blorb":
             from .orb import run_orb
             return run_orb(self)
@@ -118,6 +147,18 @@ class SlayerDailyGame(SlayerGame):
 
     def load_macro_steps(self, name):
         steps = super().load_macro_steps(name)
+        from .battle_navigation import prepare_battle_entry
+        steps = prepare_battle_entry(name, steps)
+        from .dungeon_navigation import prepare_dungeon_macro, prepare_summons
+        steps = prepare_dungeon_macro(name, steps)
+        if name == "free_wpacs":
+            steps = prepare_summons(steps)
+        if name == "loja_guild_free":
+            from .guild_navigation import prepare_guild_shop
+            steps = prepare_guild_shop(steps)
+        if name == "collect_finished_dailys":
+            from .quest_navigation import prepare_quest_collection
+            steps = prepare_quest_collection(steps)
         if name == "colheita_arma_alma":
             from .equipment import prepare_soul_harvest
             steps = prepare_soul_harvest(steps)

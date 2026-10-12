@@ -1,0 +1,37 @@
+{
+  "maps": [
+    {
+      "name": "guild_map_adventure",
+      "anchors": [
+        {"x": 0.23095, "y": 0.12361, "color": [8, 6, 5], "tolerance": 14, "radius": 1},
+        {"x": 0.39261, "y": 0.12361, "color": [43, 34, 30], "tolerance": 14, "radius": 1},
+        {"x": 0.64665, "y": 0.13473, "color": [114, 108, 105], "tolerance": 18, "radius": 0},
+        {"x": 0.66975, "y": 0.13473, "color": [139, 134, 131], "tolerance": 18, "radius": 0},
+        {"x": 0.69284, "y": 0.95797, "color": [255, 146, 0], "tolerance": 10, "radius": 0},
+        {"x": 0.71594, "y": 0.97033, "color": [255, 146, 0], "tolerance": 10, "radius": 0}
+      ]
+    },
+    {
+      "name": "guild_map_dungeon",
+      "anchors": [
+        {"x": 0.23095, "y": 0.12361, "color": [43, 34, 30], "tolerance": 14, "radius": 1},
+        {"x": 0.39261, "y": 0.12361, "color": [8, 6, 5], "tolerance": 14, "radius": 1},
+        {"x": 0.64665, "y": 0.13473, "color": [114, 108, 105], "tolerance": 18, "radius": 0},
+        {"x": 0.66975, "y": 0.13473, "color": [139, 134, 131], "tolerance": 18, "radius": 0},
+        {"x": 0.69284, "y": 0.95797, "color": [255, 146, 0], "tolerance": 10, "radius": 0},
+        {"x": 0.71594, "y": 0.97033, "color": [255, 146, 0], "tolerance": 10, "radius": 0}
+      ]
+    }
+  ],
+  "guild_shop": {
+    "name": "guild_shop",
+    "anchors": [
+      {"x": 0.06928, "y": 0.22250, "color": [97, 55, 15], "tolerance": 18, "radius": 0},
+      {"x": 0.51963, "y": 0.23486, "color": [50, 23, 4], "tolerance": 18, "radius": 0},
+      {"x": 0.05774, "y": 0.51916, "color": [35, 23, 15], "tolerance": 18, "radius": 0},
+      {"x": 0.42263, "y": 0.11990, "color": [250, 250, 250], "tolerance": 18, "radius": 0},
+      {"x": 0.49423, "y": 0.12114, "color": [255, 255, 255], "tolerance": 18, "radius": 0},
+      {"x": 0.51963, "y": 0.11990, "color": [250, 250, 250], "tolerance": 18, "radius": 0}
+    ]
+  }
+}

@@ -50,14 +50,15 @@ class PetRunner(MacroRunner):
             screens=screens, timeout=40, poll_seconds=.3, stable_frames=2, frame_size=[434,810]), hwnd)
 
     def _enter(self, hwnd):
-        from .home import home_step
-        from .cube import load_screens as cube_screens
-        main = copy.deepcopy(next(s for s in home_step()["screens"] if s["name"] == "main"))
-        main["click"] = dict(x=331, y=784)
-        maps = [copy.deepcopy(s) for s in cube_screens() if s["name"] in {"adventure", "dungeon"}]
-        for screen in maps:
-            screen["click"] = dict(x=293,y=110)
-        return self._flow(hwnd,"pet_open",[main,*maps,self.profiles["guild"],self.profiles["pet_open"]])
+        from .guild_navigation import guild_entry_step
+        entry = guild_entry_step()
+        hwnd = self._flow(hwnd, entry["terminal"], entry["screens"])
+        guild = copy.deepcopy(self.profiles["guild"])
+        # Opening the Pet tab is navigation only. Retry once if the recognized
+        # Guild screen remains after the first click; never apply this policy
+        # to the clean/reward controls below.
+        guild.update(click=dict(x=181, y=773), max_clicks=2, retry_after_seconds=3)
+        return self._flow(hwnd, "pet_open", [guild, self.profiles["pet_open"]])
 
     def _exit(self, hwnd):
         from .home import home_step

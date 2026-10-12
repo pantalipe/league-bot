@@ -8649,7 +8649,7 @@
           61,
           90
         ],
-        "tolerance": 10,
+        "tolerance": 18,
         "radius": 0
       },
       {
@@ -8660,7 +8660,7 @@
           61,
           90
         ],
-        "tolerance": 10,
+        "tolerance": 18,
         "radius": 0
       },
       {
@@ -8957,7 +8957,7 @@
           61,
           90
         ],
-        "tolerance": 10,
+        "tolerance": 18,
         "radius": 0
       },
       {
@@ -9254,7 +9254,7 @@
           61,
           90
         ],
-        "tolerance": 10,
+        "tolerance": 18,
         "radius": 0
       },
       {
@@ -54643,8 +54643,9 @@
     ],
     "click": {
       "x": 216,
-      "y": 662
+      "y": 660
     },
-    "max_clicks": 1
+    "max_clicks": 2,
+    "retry_after_seconds": 2.0
   }
 ]

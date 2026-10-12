@@ -13,8 +13,8 @@ MACROS_BY_CATEGORY: Dict[str, tuple] = {
     "ativacoes": ACTIVATIONS,
     "coletas": (
         "beast_colletct_free", "blorb", "cobinar_equip", "colheita_arma_alma",
-        "free_item_shop", "free_wpacs", "loja_guild_free", "pet_guild", "refinamento_skill",
-        "refinamento_skill_completed",
+        "collect_familiar", "mailbox", "free_item_shop", "free_wpacs", "loja_guild_free",
+        "pet_guild", "refinamento_skill", "refinamento_skill_completed",
     ),
     "missoes": (
         "cubo_de_melhora", "dragao_dormente", "floresta_circulacao",
@@ -61,13 +61,22 @@ def ordered_macros(macros: Sequence[str], rng=None) -> List[str]:
     ordered: List[str] = []
     # Start repeatable pickups early so their cooldown can elapse during the rest
     # of the flow. Scrolls and mount still precede combat tasks.
-    ordered.extend(name for name in REPEATED_MACROS if name in selected)
+    early = [name for name in REPEATED_MACROS if name in selected]
+    if rng is not None:
+        rng.shuffle(early)
+    ordered.extend(early)
     for category, names in MACROS_BY_CATEGORY.items():
         if category == "coletas_finais":
             continue
-        ordered.extend(name for name in names if name in selected and name not in REPEATED_MACROS)
+        group = [name for name in names if name in selected and name not in REPEATED_MACROS
+                 and name != "refinamento_skill_completed"]
+        if rng is not None:
+            rng.shuffle(group)
+        ordered.extend(group)
     unknown = [name for name in selected if name not in known]
     if unknown:
         ordered.extend(shuffled_order(unknown, (), rng) if rng is not None else unknown)
+    if "refinamento_skill_completed" in selected:
+        ordered.append("refinamento_skill_completed")
     ordered.extend(name for name in MACROS_BY_CATEGORY["coletas_finais"] if name in selected)
     return ordered

@@ -41,6 +41,12 @@ def cube_frame(name: str):
     return png_frame(FIXTURES / f"{name}.png")
 
 
+def flow_frame(name):
+    if name in {'adventure','dungeon'}:
+        return png_frame(ROOT / f'tests/fixtures/slayer/guild_navigation/map_{name}.png')
+    return cube_frame(name)
+
+
 def png_image_frame(image: Image.Image):
     """Convert an in-memory RGB image to the same bottom-up BGR Frame layout."""
     image = image.convert("RGB")
@@ -62,14 +68,22 @@ def repeat(frame, count=2):
     return [frame] * count
 
 
+def current_flow_frames(states):
+    states = list(states)
+    if "dungeon" in states:
+        index = states.index("dungeon")
+        states[index:index] = ["dungeon", "dungeon"]
+    return [flow_frame(state) for state in states]
+
+
 def standard_flow_frames():
     """Two stable observations per state, including a loading interval."""
     states = [
-        "main", "main", "adventure", "dungeon", "rift_free", "rift_free",
+        "main", "main", "adventure", "dungeon", "dungeon", "rift_free", "rift_free",
         "multiplier", "loading", "rift_exhausted", "rift_exhausted",
         "dungeon", "main",
     ]
-    return [cube_frame(name) for name in states for _ in range(2)]
+    return [flow_frame(name) for name in states for _ in range(2)]
 
 
 @unittest.skipUnless(la.available(), "league_bot nao encontrado (LEAGUE_BOT_DIR)")
@@ -193,7 +207,7 @@ class CubeFlowTests(unittest.TestCase):
                   "rift_exhausted", "rift_exhausted", "rift_exhausted", "rift_exhausted",
                   "rift_exhausted", "rift_exhausted",
                   "dungeon", "dungeon", "main", "main"]
-        self.backend.frames = [cube_frame(state) for state in states]
+        self.backend.frames = current_flow_frames(states)
 
         result = self.game.run_macro("cubo_de_melhora")
 
@@ -217,8 +231,8 @@ class CubeFlowTests(unittest.TestCase):
         image.putpixel((x, y), (0, 0, 0) if max(anchor["color"]) > 128 else (255, 255, 255))
         partial = png_image_frame(image)
         frames = [cube_frame("main"), cube_frame("main"), cube_frame("main"), cube_frame("main"),
-                  cube_frame("adventure"), cube_frame("adventure"),
-                  cube_frame("dungeon"), cube_frame("dungeon"),
+                  flow_frame("adventure"), flow_frame("adventure"),
+                  flow_frame("dungeon"), flow_frame("dungeon"),
                   partial, partial]
 
         with self.assertRaisesRegex(MacroError, "timed out.*unknown"):
@@ -230,8 +244,8 @@ class CubeFlowTests(unittest.TestCase):
 
     def test_stalled_multiplier_modal_gets_only_one_bounded_retry(self):
         frames = [cube_frame("main"), cube_frame("main"), cube_frame("main"), cube_frame("main"),
-                  cube_frame("adventure"), cube_frame("adventure"),
-                  cube_frame("dungeon"), cube_frame("dungeon"),
+                  flow_frame("adventure"), flow_frame("adventure"),
+                  flow_frame("dungeon"), flow_frame("dungeon"),
                   cube_frame("rift_free"), cube_frame("rift_free"),
                   cube_frame("rift_free"), cube_frame("rift_free"),
                   *([cube_frame("multiplier")] * 100)]
@@ -256,7 +270,7 @@ class CubeFlowTests(unittest.TestCase):
             if (x, y) == (346, 584) and self.backend.click_log.count((346, 584, foreground)) == 2:
                 self.backend.frames = [cube_frame("loading")] * 2
                 self.backend.frames += [cube_frame("rift_exhausted")] * 4
-                self.backend.frames += [cube_frame("dungeon")] * 2
+                self.backend.frames += [flow_frame("dungeon")] * 2
                 self.backend.frames += [cube_frame("main")] * 2
 
         self.backend.click = advance_after_retry
