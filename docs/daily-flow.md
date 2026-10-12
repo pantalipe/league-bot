@@ -34,6 +34,16 @@ O núcleo de runtime não exige Pillow nem outras dependências externas. Pillow
 
 ## Gravações e validação
 
+A retomada reconhece o painel Equipment (armas ou acessórios) e fecha-o pela
+própria aba, confirmando a tela principal antes de verificar a presença.
+Na gravação conhecida de `colheita_arma_alma`, a abertura de Equipment exige
+confirmação visual. Um clique de navegação sem efeito pode ser repetido uma
+vez, após três segundos e duas observações da tela principal. Telas
+desconhecidas interrompem o fluxo; os cliques e condições de coleta da
+gravação permanecem preservados. Essa repetição é exclusiva da navegação,
+e os demais fluxos mantêm o comportamento de não repetir um clique sem
+transição de tela.
+
 As macros são gravações de cliques, esperas e condições visuais. Uma gravação precisa ser validada ao vivo antes de entrar na seleção executada: confira a tela inicial, as telas intermediárias, a tela final, os tempos de carregamento, o layout da janela, o idioma e os custos em diamantes. Teste uma macro por vez no PC de destino e use `/cancel` ou o cancelamento de macro disponível no host se o fluxo sair do esperado.
 
 Coordenadas em porcentagem não tornam uma gravação universal. Resolução, escala, idioma, avisos e progresso da conta variam. Calibre novamente no destino e não compartilhe screenshots de gravação ou arquivos de estado pessoal. A existência de uma macro no catálogo ou de testes com frames de fixture não significa que ela foi validada ao vivo nem publicada como segura para toda a guild.

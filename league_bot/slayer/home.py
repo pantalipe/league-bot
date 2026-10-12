@@ -11,6 +11,11 @@ def load_screens():
 def home_step():
     from .navigation import load_daily_navigation, load_attendance_screens
     screens = load_screens()
+    from .equipment import equipment_screen
+    equipment = equipment_screen()
+    equipment["name"] = "home_close_equipment"
+    equipment["click"] = {"x": 184, "y": 784}
+    screens.append(equipment)
     nav = load_daily_navigation()
     screens += [nav["settings_return"], nav["menu_return"]]
     from .pet import load_screens as pet_screens

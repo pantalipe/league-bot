@@ -104,6 +104,9 @@ class SlayerDailyGame(SlayerGame):
 
     def load_macro_steps(self, name):
         steps = super().load_macro_steps(name)
+        if name == "colheita_arma_alma":
+            from .equipment import prepare_soul_harvest
+            steps = prepare_soul_harvest(steps)
         from .plan import MACRO_CATALOG
         if name in MACRO_CATALOG and name != "cubo_de_melhora":
             from .home import home_step

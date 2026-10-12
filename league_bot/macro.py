@@ -253,7 +253,8 @@ class MacroRunner:
         """Only click recognized screens; complete after a stable terminal observation.
 
         Unknown loading/animation frames are observed until the deadline. Ambiguous
-        recognition stops immediately. A persistent screen is never clicked twice.
+        recognition stops immediately. Persistent screens are not clicked twice
+        unless navigation explicitly opts into delayed, bounded retries.
         This action always uses background input, independent of legacy macro mode.
         """
         screens = {screen["name"]: screen for screen in step["screens"]}
@@ -262,6 +263,7 @@ class MacroRunner:
         stable_required = step.get("stable_frames", 2)
         candidate, stable, last_clicked = None, 0, None
         counts: Dict[str, int] = {}
+        clicked_at: Dict[str, float] = {}
         seen = "unknown"
         while True:
             self._check_cancel()
@@ -294,7 +296,10 @@ class MacroRunner:
                     self._log(f"screen flow complete: {current}")
                     return hwnd
                 screen = screens[current]
-                if current != last_clicked and "click" in screen:
+                retry = screen.get("retry_after_seconds")
+                retry_due = (retry is not None and current == last_clicked
+                             and self._clock() - clicked_at[current] >= retry)
+                if (current != last_clicked or retry_due) and "click" in screen:
                     if counts.get(current, 0) >= screen.get("max_clicks", 1):
                         raise MacroError(f"screen '{current}' returned after its click limit")
                     width, height = self._backend.client_size(hwnd)
@@ -311,6 +316,7 @@ class MacroRunner:
                         continue
                     self._backend.click(hwnd, x, y, False)
                     counts[current] = counts.get(current, 0) + 1
+                    clicked_at[current] = self._clock()
                     last_clicked = current
                     self._log(f"screen '{current}' clicked in background; waiting for transition")
                     candidate, stable = None, 0

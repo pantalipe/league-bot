@@ -63,6 +63,11 @@ def _validate_screens(screens: list[dict[str, Any]]) -> set[str]:
         max_clicks = screen.get("max_clicks", 1)
         if isinstance(max_clicks, bool) or not isinstance(max_clicks, int) or max_clicks <= 0:
             _fail(f"{where}.max_clicks must be a positive integer")
+        if "retry_after_seconds" in screen:
+            retry = screen["retry_after_seconds"]
+            if ("click" not in screen or max_clicks < 2 or isinstance(retry, bool)
+                    or not isinstance(retry, Real) or not math.isfinite(retry) or retry <= 0):
+                _fail(f"{where}.retry_after_seconds requires a positive finite delay, click and max_clicks >= 2")
     return names
 
 
