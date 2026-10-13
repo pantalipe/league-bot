@@ -55,6 +55,24 @@ class Win32InputMockTests(unittest.TestCase):
     def enable_windows_symbols(self):
         return patch.multiple(winapi, ctypes=ctypes, wintypes=ctypes.wintypes)
 
+    def test_slayer_lookup_requires_game_title_and_emulator_surface(self):
+        self.backend._enumerate = Mock(return_value=[
+            (1, 'pantalipe - Mozilla Firefox'),
+            (2, 'Slayer Legend - pantalipe - Mozilla Firefox'),
+            (3, 'Slayer Legend - pantalipe')])
+        self.backend._find_emulator_surface = Mock(side_effect=lambda hwnd:
+            self.CHILD if hwnd == 3 else (_ for _ in ()).throw(OSError('not emulator')))
+        self.assertEqual(self.backend.find_window('Slayer Legend'), 3)
+        self.assertNotIn(unittest.mock.call(1), self.backend._find_emulator_surface.call_args_list)
+
+    def test_slayer_lookup_refuses_two_games_and_browser_only(self):
+        self.backend._enumerate = Mock(return_value=[
+            (1, 'Slayer Legend - first'), (2, 'Slayer Legend - second')])
+        self.backend._find_emulator_surface = Mock(return_value=self.CHILD)
+        self.assertIsNone(self.backend.find_window('Slayer Legend'))
+        self.backend._find_emulator_surface.side_effect = OSError('not emulator')
+        self.assertIsNone(self.backend.find_window('Slayer Legend'))
+
     def test_background_click_routes_offset_coordinates_to_dynamic_child(self):
         with self.enable_windows_symbols(), patch.object(winapi.time, "sleep"):
             self.backend.click(self.ROOT, 30, 40, False)

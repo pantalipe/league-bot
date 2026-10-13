@@ -40,10 +40,23 @@ class SlayerDiamondGlyphTests(unittest.TestCase):
             "header-1467.png": 1467,
             "header-1617.png": 1617,
             "header-1667.png": 1667,
+            "header-live-5259.png": 5259,
+            "header-live-11259.png": 11259,
+            "header-live-11159.png": 11159,
+            "header-live-13799.png": 13799,
         }
         for filename, balance in expected.items():
             with self.subTest(filename=filename):
                 self.assertEqual(read_header_digits(Image.open(FIXTURES / filename)), balance)
+
+    def test_live_header_additions_still_reject_unlabelled_ink(self):
+        for filename in ("header-live-11259.png", "header-live-11159.png",
+                         "header-live-13799.png"):
+            with self.subTest(filename=filename):
+                image = Image.open(FIXTURES / filename).convert("RGB")
+                image.putpixel((45, 7), (255, 255, 255))
+                with self.assertRaises(MacroError):
+                    read_header_digits(image)
 
     def test_blank_header_is_unreadable(self):
         with self.assertRaises(MacroError):

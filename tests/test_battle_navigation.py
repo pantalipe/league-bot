@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from league_bot.macro import load_macro, validate_steps
 from league_bot.screens import matching_screens
-from league_bot.slayer.battle_navigation import prepare_battle_entry, profiles
+from league_bot.slayer.battle_navigation import prepare_battle_entry, profiles, recovery_screens
 from league_bot.slayer.home import home_step
 from tests.test_slayer_attendance import png_frame
 
@@ -38,6 +38,39 @@ class BattleNavigationTests(unittest.TestCase):
     def test_enhance_recovery_closes_character_instead_of_upgrading(self):
         frame=png_frame(ROOT/'tests/fixtures/slayer/battle_navigation/character_enhance.png')
         self.assertEqual(matching_screens(frame,home_step()['screens']),['home_close_character_enhance'])
+
+    def test_promotion_failure_frames_recover_and_trainer_returns_to_growth(self):
+        frames=[
+            'character_promotion.png',
+            'character_promotion_battle.png',
+        ]
+        home_screens=home_step()['screens']
+        for filename in frames:
+            frame=png_frame(ROOT/'tests/fixtures/slayer/battle_navigation'/filename)
+            self.assertEqual(matching_screens(frame,recovery_screens()),['home_close_character_promotion'])
+            self.assertEqual(matching_screens(frame,home_screens),['home_close_character_promotion'])
+
+        original=load_macro(ROOT/'league_bot/slayer/macros/treinador.json')
+        flow=next(step for step in prepare_battle_entry('treinador',original)
+                  if step['action']=='screen_flow')
+        promotion=next(screen for screen in flow['screens']
+                       if screen['name']=='character_promotion')
+        self.assertEqual(promotion['click'],{'x':130,'y':539})
+        self.assertEqual(flow['terminal'],'character_open')
+
+    def test_growth_recognition_uses_fixed_tab_and_character_navigation(self):
+        screens=list(profiles().values())
+        for filename in ('character.png','character_growth_current.png'):
+            frame=png_frame(ROOT/'tests/fixtures/slayer/battle_navigation'/filename)
+            self.assertEqual(matching_screens(frame,screens),['character_open'])
+            self.assertEqual(matching_screens(frame,home_step()['screens']),['home_close_character'])
+
+    def test_training_diary_recovery_uses_only_its_title_and_close_control(self):
+        frame=png_frame(ROOT/'tests/fixtures/slayer/battle_navigation/training_diary.png')
+        self.assertEqual(matching_screens(frame,home_step()['screens']),['home_close_training_diary'])
+        recovery=next(screen for screen in recovery_screens()
+                      if screen['name']=='home_close_training_diary')
+        self.assertEqual(recovery['click'],{'x':36,'y':755})
 
     def test_bright_main_artwork_remains_main_without_opening_a_panel(self):
         # Existing fixture and new fixed-artwork colors must stay unambiguous.

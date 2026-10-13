@@ -131,6 +131,18 @@ if IS_WINDOWS:
             if not needle:
                 return None
             windows = self._enumerate()
+            if needle == "slayer legend" or needle.startswith("slayer legend -"):
+                matches = []
+                for hwnd, text in windows:
+                    candidate = text.strip().lower()
+                    if candidate != needle and not candidate.startswith(needle + " -"):
+                        continue
+                    try:
+                        self._find_emulator_surface(hwnd)
+                    except OSError:
+                        continue
+                    matches.append(hwnd)
+                return matches[0] if len(matches) == 1 else None
             for hwnd, text in windows:
                 if text.lower() == needle:
                     return hwnd

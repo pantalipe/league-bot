@@ -9,11 +9,15 @@ def profiles():
 
 def recovery_screens():
     screens=[]
-    for key in ('character','character_enhance'):
+    for key in ('character','character_enhance','character_promotion'):
         character=copy.deepcopy(profiles()[key])
         character.update(name='home_close_'+key,click={'x':33,'y':784},
                          max_clicks=2,retry_after_seconds=3)
         screens.append(character)
+    diary=copy.deepcopy(profiles()['training_diary'])
+    diary.update(name='home_close_training_diary',click={'x':36,'y':755},
+                 max_clicks=2,retry_after_seconds=3)
+    screens.append(diary)
     return screens
 
 def prepare_battle_entry(name,steps):
@@ -45,5 +49,7 @@ def prepare_battle_entry(name,steps):
         return [*first,flow,select,*copy.deepcopy(steps[prefix:])]
     enhance=copy.deepcopy(profiles()['character_enhance'])
     enhance.update(click={'x':130,'y':539},max_clicks=2,retry_after_seconds=3)
-    flow['screens'].insert(1,enhance)
+    promotion=copy.deepcopy(profiles()['character_promotion'])
+    promotion.update(click={'x':130,'y':539},max_clicks=2,retry_after_seconds=3)
+    flow['screens'][1:1]=[enhance,promotion]
     return [*first,flow,*copy.deepcopy(steps[prefix:])]

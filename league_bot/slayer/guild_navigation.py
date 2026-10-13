@@ -40,7 +40,7 @@ def _map_profiles():
 def guild_entry_step():
     """Navigate from the recognized main/map state to the Guild lobby."""
     main = _main_profile()
-    main["click"] = {"x": 331, "y": 784}  # Adventure tab
+    main.update(click={"x": 331, "y": 784}, max_clicks=2, retry_after_seconds=3)
     return {
         "action": "screen_flow", "terminal": "guild_lobby", "timeout": 45,
         "poll_seconds": 0.3, "stable_frames": 2, "frame_size": [434, 810],

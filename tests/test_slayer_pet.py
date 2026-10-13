@@ -138,19 +138,34 @@ class PetPolicyTests(unittest.TestCase):
 
         def flow(hwnd, terminal, _screens):
             state["events"].append(("flow", terminal, state["progress"]))
-            if terminal.startswith("pet_") and terminal[4:].isdigit():
-                next_progress = int(terminal[4:])
-                if next_progress == state["progress"] + 1:
-                    if state["progress"] > 0:
-                        state["events"].append(("paid", state["progress"]))
-                    state["progress"] = next_progress
             return hwnd
+
+        def clean_batch(hwnd, progress, count, *, confirm_rewards=True):
+            state["events"].append(("batch", progress, count, confirm_rewards))
+            for _ in range(count):
+                if progress > 0:
+                    state["events"].append(("paid", progress))
+                state["events"].append(("click", 216, 651))
+                if confirm_rewards:
+                    state["events"].append(("click", 216, 660))
+                progress += 1
+            state["progress"] = progress
+            return hwnd, count
+
+        def final_progress(hwnd, *, starting_progress, max_progress, timeout=40):
+            state["events"].append(("final", starting_progress, max_progress))
+            sequence = state.get("observed_sequence", [])
+            observed = sequence.pop(0) if sequence else state.get("observed_final", state["progress"])
+            state["progress"] = observed
+            return hwnd, observed
 
         runner._enter = enter
         runner._exit = exit_pet
         runner._counter = counter
         runner._balance = balance
         runner._flow = flow
+        runner._clean_batch = clean_batch
+        runner._final_progress = final_progress
         return runner, state
 
     def run_policy(self, runner):
@@ -162,20 +177,23 @@ class PetPolicyTests(unittest.TestCase):
     def test_costs_for_every_confirmed_progress_value(self):
         self.assertEqual([remaining_cost(n) for n in range(6)], [1000, 1000, 900, 700, 400, 0])
 
-    def test_free_and_all_paid_cleans_require_a_fresh_balance_before_each_paid_click(self):
-        runner, state = self.make_runner(start=0, balances=[1000, 900, 700, 400])
+    def test_one_total_balance_check_precedes_one_panel_visit_and_all_paid_cleans(self):
+        store = RecordingStore()
+        runner, state = self.make_runner(start=0, balances=[1000], store=store)
         self.run_policy(runner)
         events = state["events"]
         paid_positions = [i for i, event in enumerate(events) if event[0] == "paid"]
-        for progress, paid_position in enumerate(paid_positions, start=1):
-            balance_position = max(i for i, event in enumerate(events[:paid_position])
-                                   if event[0] == "balance")
-            self.assertLess(balance_position, paid_position)
-            self.assertEqual(events[balance_position][1], progress)
-            self.assertEqual(events[balance_position][2], remaining_cost(progress))
+        self.assertEqual([event for event in events if event[0] == "batch"], [("batch", 0, 5, True)])
+        self.assertEqual(len([event for event in events if event[0] == "click"]), 2 * (5 - 0))
+        self.assertEqual([event for event in events if event[0] == "final"], [("final", 0, 5)])
+        self.assertEqual(len([event for event in events if event[0] == "balance"]), 1)
+        self.assertEqual(len([event for event in events if event[0] == "enter"]), 1)
+        self.assertLess(next(i for i,event in enumerate(events) if event[0] == "balance"),
+                        next(i for i,event in enumerate(events) if event[0] == "enter"))
         self.assertEqual(len(paid_positions), 4)
         self.assertEqual(runner.outcome.progress, 5)
         self.assertFalse(runner.outcome.skipped)
+        self.assertEqual([row[1] for row in store.progress], [0, 5])
 
     def test_balance_999_collects_free_then_skips_all_paid_cleans(self):
         runner, state = self.make_runner(start=0, balances=[999])
@@ -183,20 +201,38 @@ class PetPolicyTests(unittest.TestCase):
         self.assertEqual(runner.outcome.progress, 1)
         self.assertTrue(runner.outcome.skipped)
         self.assertIn("999", runner.outcome.reason)
+        self.assertEqual([event for event in state["events"] if event[0] == "batch"], [("batch", 0, 1, False)])
+        self.assertEqual([event for event in state["events"] if event[0] == "click"], [("click", 216, 651)])
         self.assertEqual([event for event in state["events"] if event[0] == "paid"], [])
 
     def test_progress_two_requires_cost_of_all_remaining_paid_cleans(self):
-        runner, state = self.make_runner(start=2, balances=[699])
+        runner, state = self.make_runner(start=2, balances=[899])
         self.run_policy(runner)
         self.assertEqual(runner.outcome.progress, 2)
         self.assertTrue(runner.outcome.skipped)
+        self.assertIn("900", runner.outcome.reason)
+        self.assertEqual([event for event in state["events"] if event[0] == "batch"], [("batch", 2, 0, False)])
         self.assertEqual([event for event in state["events"] if event[0] == "paid"], [])
 
-    def test_already_complete_does_not_read_balance_or_pay(self):
-        runner, state = self.make_runner(start=5, balances=[])
+    def test_progress_two_with_exact_900_runs_the_remaining_paid_cleans(self):
+        runner, state = self.make_runner(start=2, balances=[900])
+        self.run_policy(runner)
+        self.assertEqual(runner.outcome.progress, 5)
+        self.assertFalse(runner.outcome.skipped)
+        self.assertEqual([event for event in state["events"] if event[0] == "paid"],
+                         [("paid", 2), ("paid", 3), ("paid", 4)])
+        self.assertEqual(len([event for event in state["events"] if event[0] == "click"]), 2 * (5 - 2))
+        self.assertEqual(len([event for event in state["events"] if event[0] == "balance"]), 1)
+        self.assertEqual(len([event for event in state["events"] if event[0] == "enter"]), 1)
+
+    def test_already_complete_store_skips_ocr_balance_and_navigation(self):
+        store = RecordingStore()
+        store.snapshot = lambda: {"tasks": {slayer_pet.TASK: {"progress": 5, "target": 5}}}
+        runner, state = self.make_runner(start=0, balances=[], store=store)
         self.run_policy(runner)
         self.assertEqual(runner.outcome.progress, 5)
         self.assertEqual([event for event in state["events"] if event[0] == "balance"], [])
+        self.assertEqual([event for event in state["events"] if event[0] == "enter"], [])
         self.assertEqual([event for event in state["events"] if event[0] == "paid"], [])
 
     def test_unreadable_balance_fails_before_any_paid_action(self):
@@ -210,15 +246,46 @@ class PetPolicyTests(unittest.TestCase):
         with self.assertRaises(MacroCancelled):
             self.run_policy(runner)
         self.assertEqual([event for event in state["events"] if event[0] == "paid"], [])
+        self.assertEqual([event for event in state["events"] if event[0] == "enter"], [])
 
-    def test_partial_visual_progress_is_persisted(self):
+    def test_unknown_balance_keeps_safe_free_clean_then_fails_before_paid_action(self):
         store = RecordingStore()
-        runner, _state = self.make_runner(start=0, balances=[1000, MacroError("unreadable")], store=store)
-        with self.assertRaisesRegex(MacroError, "unreadable"):
+        runner, state = self.make_runner(start=0, balances=[MacroError("balance unreadable")], store=store)
+        with self.assertRaisesRegex(MacroError, "balance unreadable"):
             self.run_policy(runner)
-        self.assertEqual([row[1] for row in store.progress], [0, 1, 2])
+        self.assertEqual(state["progress"], 1)
+        self.assertEqual([event for event in state["events"] if event[0] == "batch"], [("batch", 0, 1, False)])
+        self.assertEqual([event for event in state["events"] if event[0] == "click"], [("click", 216, 651)])
+        self.assertEqual([event for event in state["events"] if event[0] == "paid"], [])
+        self.assertEqual([row[1] for row in store.progress], [0, 1])
+
+    def test_only_stable_final_progress_is_persisted_after_the_batch(self):
+        store = RecordingStore()
+        runner, state = self.make_runner(start=0, balances=[1000], store=store)
+        state["observed_sequence"] = [3, 3]
+        self.run_policy(runner)
+        self.assertEqual(runner.outcome.progress, 3)
+        self.assertTrue(runner.outcome.skipped)
+        self.assertEqual([event for event in state["events"] if event[0] == "batch"],
+                         [("batch", 0, 5, True), ("batch", 3, 2, True)])
+        self.assertEqual([row[1] for row in store.progress], [0, 3, 3])
         self.assertTrue(all(row[0] == slayer_pet.TASK and row[2] == 5 for row in store.progress))
         self.assertTrue(all(row[3]["source"] == "visual" for row in store.progress))
+
+    def test_advancing_followup_burst_completes_from_confirmed_progress_without_new_budget_read(self):
+        store = RecordingStore()
+        runner, state = self.make_runner(start=0, balances=[1000], store=store)
+        state["observed_sequence"] = [3, 5]
+        self.run_policy(runner)
+        self.assertEqual(runner.outcome.progress, 5)
+        self.assertFalse(runner.outcome.skipped)
+        self.assertEqual([event for event in state["events"] if event[0] == "batch"],
+                         [("batch", 0, 5, True), ("batch", 3, 2, True)])
+        self.assertEqual([event for event in state["events"] if event[0] == "balance"],
+                         [("balance", 0, 1000)])
+        self.assertEqual([event for event in state["events"] if event[0] == "enter"],
+                         [("enter", 0)])
+        self.assertEqual([row[1] for row in store.progress], [0, 3, 5])
 
     def test_unknown_counter_frame_and_ambiguous_profiles_never_authorize_a_click(self):
         runner, _state = self.make_runner(start=0, balances=[])
@@ -232,6 +299,62 @@ class PetPolicyTests(unittest.TestCase):
         with mock.patch.object(slayer_pet, "matching_screens", return_value=["pet_0", "pet_1"]):
             with self.assertRaisesRegex(MacroError, "desconhecido; nenhum gasto autorizado"):
                 PetRunner._counter(runner, 7)
+
+        runner, state = self.make_runner(start=0, balances=[1000])
+        def unknown_counter(_hwnd):
+            raise MacroError("Contador ou custo do pet da guild desconhecido; nenhum gasto autorizado.")
+        runner._counter = unknown_counter
+        with self.assertRaisesRegex(MacroError, "desconhecido"):
+            self.run_policy(runner)
+        self.assertEqual([event for event in state["events"] if event[0] == "batch"], [])
+        self.assertEqual([event for event in state["events"] if event[0] == "click"], [])
+
+    def test_real_batch_caps_to_known_remaining_and_preserves_clean_reward_click_order(self):
+        backend = FakeBackend([])
+        runner = PetRunner(backend, "Slayer Legend", foreground=False,
+                           sleep=FakeTime().sleep, clock=FakeTime().clock,
+                           balance_reader=lambda _frame: 0)
+        hwnd, count = runner._clean_batch(7, progress=4, count=99, confirm_rewards=False)
+        self.assertEqual((hwnd, count), (7, 1))
+        self.assertEqual(backend.click_log, [(216, 651, False)])
+
+    def test_cancellation_is_checked_between_each_click_in_a_batch(self):
+        backend = FakeBackend([])
+        time = FakeTime()
+        runner = PetRunner(backend, "Slayer Legend", foreground=False,
+                           sleep=time.sleep, clock=time.clock,
+                           balance_reader=lambda _frame: 0)
+        original_click = backend.click
+        def cancel_after_first_click(hwnd, x, y, foreground):
+            original_click(hwnd, x, y, foreground)
+            runner._cancelled.set()
+        backend.click = cancel_after_first_click
+        with self.assertRaises(MacroCancelled):
+            runner._clean_batch(7, progress=0, count=1)
+        self.assertEqual(backend.click_log, [(216, 651, False)])
+
+    def test_final_observation_confirms_only_actual_counter_and_bounded_reward(self):
+        reward = png_frame(FIXTURES / "reward_confirm_live.png")
+        pet_1 = png_frame(FIXTURES / "pet_1.png")
+        backend = FakeBackend([reward, reward, pet_1, pet_1])
+        time = FakeTime()
+        runner = PetRunner(backend, "Slayer Legend", foreground=False,
+                           sleep=time.sleep, clock=time.clock,
+                           balance_reader=lambda _frame: 0)
+        _hwnd, progress = runner._final_progress(7, starting_progress=0, max_progress=1)
+        self.assertEqual(progress, 1)
+        self.assertEqual(backend.click_log, [(216, 660, False)])
+
+    def test_final_counter_decrease_fails_without_a_confirmation_click(self):
+        pet_2 = png_frame(FIXTURES / "pet_2.png")
+        backend = FakeBackend([pet_2, pet_2])
+        time = FakeTime()
+        runner = PetRunner(backend, "Slayer Legend", foreground=False,
+                           sleep=time.sleep, clock=time.clock,
+                           balance_reader=lambda _frame: 0)
+        with self.assertRaisesRegex(MacroError, "diminuiu"):
+            runner._final_progress(7, starting_progress=3, max_progress=5)
+        self.assertEqual(backend.click_log, [])
 
     def test_live_free_counter_and_button_color_are_recognized_without_relaxing_paid_states(self):
         live = png_frame(FIXTURES / "pet_0_live.png")

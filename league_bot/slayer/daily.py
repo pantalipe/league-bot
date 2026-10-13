@@ -113,9 +113,13 @@ class HomeDailyRunner(DailyRunner):
             if self._ensure_running:
                 self._game.start()
             self._check_cancelled(cycle)
-            attendance = self._game.check_attendance()
-            if self._status_store:
-                self._status_store.mark_progress("attendance", 1, source="visual", expected_cycle=cycle)
+            attendance_task = (snapshot or {}).get("tasks", {}).get("attendance", {})
+            if attendance_task.get("status") == "completed" and attendance_task.get("progress", 0) >= 1:
+                attendance = "already_claimed"
+            else:
+                attendance = self._game.check_attendance()
+                if self._status_store:
+                    self._status_store.mark_progress("attendance", 1, source="visual", expected_cycle=cycle)
             done.append(ATTENDANCE_MACRO)
 
             # Run one eligible pickup early, then let other work occupy its cooldown.
@@ -230,7 +234,9 @@ class HomeDailyRunner(DailyRunner):
             result = self._game.run_macro(name)
         except MacroCancelled:
             raise
-        except MacroError as exc:
+        except (MacroError, GameError) as exc:
+            if isinstance(exc, GameError) and name != "treinador":
+                raise
             self._check_cancelled(cycle)
             recovery = getattr(self._game, "recover_home", None)
             if not callable(recovery):
@@ -245,7 +251,10 @@ class HomeDailyRunner(DailyRunner):
             except (MacroError, GameError) as recovery_error:
                 raise GameError(f"{name}: {exc}; recuperação falhou: {recovery_error}") from recovery_error
             self._check_cancelled(cycle)
-            result = DeferredOutcome(f"{name}: falhou e ficou pendente; tela principal recuperada. {exc}")
+            message = (f"⚠️ treinador: pulado após falha; vou continuar as outras tarefas da daily. {exc}"
+                       if name == "treinador" else
+                       f"{name}: falhou e ficou pendente; tela principal recuperada. {exc}")
+            result = DeferredOutcome(message)
         self._check_cancelled(cycle)
         from .shop import ShopOutcome
         if isinstance(result, ShopOutcome):

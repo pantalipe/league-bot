@@ -1,4 +1,4 @@
-"""Visual guild-pet cleans with a fresh balance check before each paid action."""
+"""Visual guild-pet cleans with one budget check before the clean sequence."""
 import copy
 import json
 from dataclasses import dataclass
@@ -89,42 +89,171 @@ class PetRunner(MacroRunner):
             self._check_cancel()
         if values[0] != values[1]:
             raise MacroError("Saldo de diamantes instavel; nenhum gasto realizado.")
+        if type(values[0]) is not int or values[0] < 0:
+            raise MacroError("Saldo de diamantes desconhecido; nenhum gasto autorizado.")
         return hwnd, values[0]
 
     def _record(self, progress):
         if self.store:
             self.store.mark_progress(TASK,progress,5,label="Pet da guild",source="visual",expected_cycle=self.cycle)
 
+    def _stored_complete(self):
+        snapshot = getattr(self.store, "snapshot", None)
+        if not callable(snapshot):
+            return False
+        task = snapshot().get("tasks", {}).get(TASK, {})
+        return task.get("target") == 5 and task.get("progress") == 5
+
+    def _click_pet(self, hwnd, x, y):
+        self._check_cancel()
+        if hwnd is None or not self._backend.is_window(hwnd):
+            hwnd = self._backend.find_window(self._title)
+        if hwnd is None:
+            raise MacroError("Janela do jogo indisponivel durante o lote de limpezas.")
+        width, height = self._backend.client_size(hwnd)
+        if (width, height) != (434, 810):
+            raise MacroError("Geometria do pet mudou; nenhuma limpeza adicional autorizada.")
+        if not (0 <= x < width and 0 <= y < height):
+            raise MacroError("Coordenada de limpeza fora da janela.")
+        self._check_cancel()
+        self._backend.click(hwnd, x, y, False)
+        return hwnd
+
+    def _clean_batch(self, hwnd, progress, count, *, confirm_rewards=True):
+        # Count is derived only from the recognized initial counter and remains
+        # hard-capped by the known five-clean quota.
+        count = min(count, 5 - progress)
+        for _ in range(count):
+            hwnd = self._click_pet(hwnd, 216, 651)
+            if confirm_rewards:
+                hwnd = self._click_pet(hwnd, 216, 660)
+        return hwnd, count
+
+    def _final_progress(self, hwnd, *, starting_progress, max_progress, timeout=40):
+        """Observe a stable counter after the bounded click batch; confirm reward only if seen."""
+        counters = [self.profiles[f"pet_{number}"] for number in range(6)]
+        reward = self.profiles["reward"]
+        deadline = self._clock() + timeout
+        candidate, stable = None, 0
+        reward_clicks, reward_clicked_at = 0, None
+        last_seen = "unknown"
+        while True:
+            self._check_cancel()
+            if self._clock() >= deadline:
+                raise MacroError(f"Pet da guild sem contador final estavel; ultimo estado: {last_seen}.")
+            if hwnd is None or not self._backend.is_window(hwnd):
+                hwnd = self._backend.find_window(self._title)
+            frame = None
+            if hwnd is not None and not self._backend.is_minimized(hwnd):
+                frame = self._backend.capture(hwnd)
+            if frame is not None:
+                self._last_frame = frame
+                if (frame.width, frame.height) != (434, 810) or self._backend.client_size(hwnd) != (434, 810):
+                    raise MacroError("Geometria do pet mudou durante a confirmacao final.")
+                matches = matching_screens(frame, [*counters, reward])
+            else:
+                matches = []
+            if len(matches) > 1:
+                raise MacroError("Contador ou recompensa final ambiguos; nenhuma acao adicional autorizada.")
+            current = matches[0] if matches else None
+            last_seen = current or "unknown"
+            stable = stable + 1 if current is not None and current == candidate else (1 if current else 0)
+            candidate = current
+            if current == reward["name"] and stable >= 2:
+                retry = reward.get("retry_after_seconds", 2.0)
+                due = reward_clicked_at is None or self._clock() - reward_clicked_at >= retry
+                if due:
+                    if reward_clicks >= reward.get("max_clicks", 2):
+                        raise MacroError("Recompensa do pet permaneceu visivel apos as confirmacoes limitadas.")
+                    click = reward["click"]
+                    hwnd = self._click_pet(hwnd, click["x"], click["y"])
+                    reward_clicks += 1
+                    reward_clicked_at = self._clock()
+                    candidate, stable = None, 0
+            elif current and current.startswith("pet_") and current[4:].isdigit() and stable >= 2:
+                progress = int(current[4:])
+                if progress < starting_progress:
+                    raise MacroError("Contador final do pet diminuiu; progresso nao confirmado.")
+                if progress > max_progress:
+                    raise MacroError("Contador final do pet excedeu as limpezas solicitadas.")
+                return hwnd, progress
+            self._pause(min(.3, max(0, deadline - self._clock())))
+
     def _do_screen_flow(self, step, hwnd):
         if not step.get("guild_pet"):
             return super()._do_screen_flow(step,hwnd)
         from .home import home_step
+        self._check_cancel()
+        if self._stored_complete():
+            self.outcome = PetOutcome(5)
+            return hwnd
         hwnd = super()._do_screen_flow(home_step(),hwnd)
+        balance_error = None
+        try:
+            # One stable main-screen balance check authorizes the whole
+            # remaining sequence. No navigation occurs between paid cleans.
+            hwnd, balance = self._balance(hwnd)
+        except MacroCancelled:
+            raise
+        except MacroError as exc:
+            balance_error, balance = exc, None
         hwnd = self._enter(hwnd)
         hwnd, progress = self._counter(hwnd)
         self._record(progress)
-        while progress < 5:
-            if progress:
+
+        if progress == 5:
+            self.outcome = PetOutcome(progress)
+            return self._exit(hwnd)
+
+        initial_progress = progress
+        required = remaining_cost(initial_progress)
+        if balance_error is not None:
+            if progress == 0:
+                # The free action is safe at a recognized zero counter. Batch
+                # only that clean, then verify its actual result before failing.
+                hwnd, _ = self._clean_batch(hwnd, progress, 1, confirm_rewards=False)
+                hwnd, observed = self._final_progress(hwnd, starting_progress=progress,
+                                                      max_progress=1)
+                if observed < progress:
+                    raise MacroError("Contador final do pet diminuiu; progresso nao confirmado.")
+                self._record(observed)
                 hwnd = self._exit(hwnd)
-                hwnd, balance = self._balance(hwnd)
-                required = remaining_cost(progress)
-                if balance < required:
-                    self.outcome = PetOutcome(progress,True,
-                        f"Pet da guild: {progress}/5. Saldo {balance}; precisa de {required} diamantes para as limpezas restantes. Etapas pagas puladas.")
-                    return hwnd
-                hwnd = self._enter(hwnd)
-                hwnd, observed = self._counter(hwnd)
-                if observed != progress:
-                    raise MacroError("O contador do pet mudou durante a conferencia; nenhum novo gasto realizado.")
-            clean = copy.deepcopy(self.profiles[f"pet_{progress}"])
-            clean["click"] = dict(x=216,y=651)
-            # One clean, one reward confirmation; a return to the same counter
-            # never repeats the purchase. Only the next counter proves success.
-            hwnd = self._flow(hwnd,f"pet_{progress+1}",
-                              [clean,self.profiles["reward"],self.profiles[f"pet_{progress+1}"]])
-            progress += 1
-            self._record(progress)
-        self.outcome = PetOutcome(progress)
+            else:
+                hwnd = self._exit(hwnd)
+            raise balance_error
+
+        if balance < required:
+            count = 1 if progress == 0 else 0
+            hwnd, attempted = self._clean_batch(hwnd, progress, count, confirm_rewards=False)
+            hwnd, observed = self._final_progress(hwnd, starting_progress=progress,
+                                                  max_progress=progress + attempted)
+            self._record(observed)
+            reason = (f"Pet da guild: {observed}/5. Saldo {balance}; precisa de {required} "
+                      "diamantes para as limpezas restantes. Etapas pagas puladas.")
+            self.outcome = PetOutcome(observed,True,reason)
+            return self._exit(hwnd)
+
+        # If a burst confirms some progress but not all of it, a bounded
+        # follow-up burst may use the initial full-budget authorization. A
+        # burst that makes no progress ends the run without replaying clicks.
+        for _ in range(5):
+            count = 5 - progress
+            if count <= 0:
+                break
+            hwnd, attempted = self._clean_batch(hwnd, progress, count)
+            hwnd, observed = self._final_progress(hwnd, starting_progress=progress,
+                                                  max_progress=progress + attempted)
+            self._record(observed)
+            if observed == 5:
+                progress = observed
+                break
+            if observed <= progress:
+                progress = observed
+                break
+            progress = observed
+        self.outcome = (PetOutcome(progress) if progress == 5 else
+                        PetOutcome(progress,True,
+                                   f"Pet da guild: {progress}/5 limpezas confirmadas; restante pendente."))
         return self._exit(hwnd)
 
 

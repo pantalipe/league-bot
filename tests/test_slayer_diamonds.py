@@ -92,6 +92,21 @@ class DiamondTextTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertEqual(read_diamonds(Frame(width, height, bytes(pixels))), expected)
 
+    def test_live_5259_and_11259_headers_through_full_frame_reader(self):
+        for expected in (5259, 11259, 11159, 13799, 16899):
+            image = Image.new('RGB', (434, 810))
+            with Image.open(ROOT / f'tests/fixtures/slayer/diamonds/header-live-{expected}.png') as header:
+                image.paste(header, (252, 49))
+            image.paste((0, 160, 220), (241, 51, 251, 70))
+            stride = ((434 * 3 + 3) // 4) * 4
+            pixels = bytearray(stride * 810)
+            for y in range(810):
+                line = image.crop((0, y, 434, y + 1)).tobytes('raw', 'BGR')
+                offset = (809 - y) * stride
+                pixels[offset:offset + len(line)] = line
+            with self.subTest(expected=expected):
+                self.assertEqual(read_diamonds(Frame(434, 810, bytes(pixels))), expected)
+
 
 if __name__ == '__main__':
     unittest.main()

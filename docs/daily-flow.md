@@ -7,13 +7,26 @@ O pacote `league_bot.slayer` oferece uma seleção padrão de 20 macros para Sla
 1. Confere a seleção, dependências e o estado salvo. Verifica presença primeiro e, se necessário, inicia o jogo. Avisos de ativação dos bônus de scrolls e montaria são enviados antes das respectivas macros.
 2. Black Orb reconhece a coleta gratuita e as duas coletas com vídeo pelos contadores e botões observados. Cada tentativa usa um único clique e só registra uma coleta após confirmar o incremento do contador. O intervalo mínimo entre coletas confirmadas é de cinco minutos; um temporizador ativo deixa a coleta pendente para a próxima daily. O estado que oferece penas após as duas coletas com vídeo encerra a tarefa sem compra. WPACS executa três vezes, com intervalo mínimo de dez minutos. Essas coletas começam cedo para que os intervalos avancem durante outras tarefas. A coleta de diárias final fica para depois de suas dependências.
 3. As demais macros seguem os estágios e dependências do plano. O fluxo visual do Cubo da Melhora usa até três entradas gratuitas; não clica em uma entrada que exija penas.
-4. O pet tem uma limpeza gratuita e quatro pagas: 100, 200, 300 e 400 diamantes (1.000 no total). Antes de cada limpeza paga, exige duas leituras iguais do saldo e orçamento para **todas** as limpezas restantes. Se faltar saldo, preserva o progresso, avisa e continua a daily. Se a tela, o custo ou o saldo forem desconhecidos, interrompe a daily sem novo gasto. O contador visual seguinte confirma cada limpeza.
+4. O pet tem uma limpeza gratuita e quatro pagas: 100, 200, 300 e 400 diamantes (1.000 no total). Confere o saldo com duas leituras iguais antes de entrar e exige orçamento para **todas** as limpezas restantes. Executa uma sequência limitada de cliques de limpeza/confirmação em uma visita ao painel e confere o contador ao final. Só grava o progresso observado, nunca o número de cliques. Se faltar saldo, preserva a limpeza gratuita e pula as pagas. Tela, custo ou saldo inicial desconhecido não autorizam gasto.
 5. O progresso de tarefas é salvo em disco no diretório `SLAYER_DATA_DIR` da instalação e é carregado novamente nas próximas consultas/execuções. O ciclo diário troca às 02:00 no fuso UTC−03:00. Essa troca é lazy: ocorre quando a aplicação lê ou atualiza o estado, sem timer ou ação de jogo em segundo plano.
 
 Na loja Goods, cada oferta gratuita tem seu próprio contador de até dez anúncios.
-O fluxo lê os dois contadores, clica uma vez no anúncio gratuito reconhecido e
-exige incremento de um somente na oferta escolhida. Não usa os botões com preço
+O fluxo lê os dois contadores, executa uma sequência limitada ao número de
+anúncios gratuitos restantes e confere os dois contadores ao final. Só grava as
+coletas visualmente confirmadas. Não usa os botões com preço
 em reais. Contador desconhecido ou anúncio indisponível deixa a tarefa pendente.
+Se a conferência confirmar avanço parcial, completa o restante no mesmo painel
+em novos lotes limitados. Ausência de avanço encerra a tentativa.
+Os botões ADS têm reconhecimento separado para os layouts calibrados; o clique
+usa a posição do botão na captura atual. Posições desconhecidas não autorizam
+cliques por coordenadas antigas.
+
+Uma presença já confirmada no estado do ciclo atual não abre novamente a tela
+de recompensa nas retomadas. A troca de ciclo permite a próxima verificação.
+
+A seleção da janela usa `Slayer Legend`, aceita o sufixo da conta e exige a
+superfície do emulador. Uma janela de navegador com texto semelhante não é
+aceita; múltiplas janelas de jogo candidatas interrompem a seleção.
 
 O refinamento de habilidade demora dez minutos. A coleta do refinamento fica
 depois das missões e das esperas de coletas repetidas; se ainda estiver dentro
@@ -29,7 +42,16 @@ subaba antes de executar a gravação conhecida. A seleção anterior fica salva
 jogo; abrir Shop ou Adventure não garante que Summon ou Dungeon esteja aberto.
 Entradas personalizadas com outro padrão permanecem preservadas.
 
-`/cancel` cancela a macro atual e interrompe as esperas da daily. Uma nova `/daily` retoma os contadores do mesmo ciclo. `python -m league_bot daily status` mostra o estado; `python -m league_bot daily set "Caverna" 1 3` registra uma missão pelo nome. No Telegram, use `/dailystatus` e `/dailyset "Caverna" 1 3`. Presença, espadas, acessórios e habilidades também aceitam aliases. A conclusão de uma gravação registra execução; somente os fluxos visuais de presença, cubo e pet conferem seus estados específicos no jogo.
+A entrada do treinador reconhece as subabas Enhance, Growth e Promotion de
+Character. Se Promotion ou Enhance estiver salva como a última subaba, seleciona
+Growth antes de continuar a gravação. A recuperação também fecha Character a
+partir de Promotion e confirma a tela principal.
+Se o treinador falhar, a daily recupera a navegação, pula a tarefa sem marcá-la
+como concluída e envia um aviso pelo callback de progresso do Telegram antes de
+continuar. A luta do robô liberada pela barra completa não é iniciada por esse
+tratamento de falha.
+
+`/cancel` cancela a macro atual e interrompe as esperas da daily. Uma nova `/daily` retoma os contadores do mesmo ciclo. `python -m league_bot daily status` mostra o estado; `python -m league_bot daily set "Caverna" 1 3` registra uma missão pelo nome. No Telegram, use `/dailystatus` e `/dailyset "Caverna" 1 3`. Presença, espadas, acessórios e habilidades também aceitam aliases. A conclusão de uma gravação registra execução; os fluxos visuais de presença, cubo, pet e loja conferem seus estados específicos no jogo.
 
 As coletas incluem collect_familiar e mailbox. O Mailbox vazio exige duas observações iguais e é fechado sem acionar coleta. Quando há recompensas, mantém os passos gravados e não repete os cliques de claim.
 

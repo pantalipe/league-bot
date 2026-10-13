@@ -48,8 +48,14 @@ def read_counter(frame, kind, data=None):
         x1,y1=max(x for x,y in points),max(y for x,y in points)
         mask=[''.join('1' if (x,y) in points else '0' for x in range(x0,x1+1))
               for y in range(y0,y1+1)]
-        distances=sorted((_mask_distance(mask,sample['mask']),sample['used'],sample['total'])
-                         for sample in data['counter_templates'])
+        best_by_reading={}
+        for sample in data['counter_templates']:
+            reading=(sample['used'],sample['total'])
+            distance=_mask_distance(mask,sample['mask'])
+            if reading not in best_by_reading or distance<best_by_reading[reading]:
+                best_by_reading[reading]=distance
+        distances=sorted((distance,used,total)
+                         for (used,total),distance in best_by_reading.items())
         if (not distances or distances[0][0] > 0.065
                 or (distances[0][0] > 0.002 and len(distances)>1
                     and distances[1][0]-distances[0][0] < 0.015)):
@@ -179,24 +185,91 @@ class ShopRunner(MacroRunner):
         self.store.mark_progress(TASK,progress,20,label='free_item_shop',source=source,
             expected_cycle=self.cycle)
 
+    def _ad_button(self,frame,kind):
+        profile=self.data['ad_buttons'].get(kind)
+        if profile is None:
+            return None
+        layouts=[profile,*profile.get('variants',[])]
+        matches=[]
+        for index,layout in enumerate(layouts):
+            name=f'ad_{kind}_{index}'
+            if matching_screens(frame,[{'name':name,'anchors':layout['anchors']}]) == [name]:
+                matches.append(layout)
+        return matches[0] if len(matches)==1 else None
+
     def _ad_ready(self,frame,kind):
-        profile=self.data['ad_buttons'][kind]
-        screen={'name':'ad_'+kind,'anchors':profile['anchors']}
-        matches=matching_screens(frame,[screen])
-        return matches==['ad_'+kind]
+        return self._ad_button(frame,kind) is not None
 
     def _claim_once(self,hwnd,kind,counts,frame,timeout=120):
         before,frame=self._observe(hwnd)
-        if before!=counts or not self._ad_ready(frame,kind):
+        button=self._ad_button(frame,kind)
+        if before!=counts or button is None:
             raise MacroError('Loja mudou antes do anuncio; coleta pendente.')
         used,total=counts[kind]
         if not any(s['used']==used+1 and s['total']==total for s in self.data['counter_templates']):
             raise MacroError('Loja: contador desconhecido; coleta pendente.')
         self._check_cancel()
-        click=self.data['ad_buttons'][kind]['click']
+        click=button['click']
         self._backend.click(hwnd,click['x'],click['y'],False)
         after,frame=self._wait_for_increment(hwnd,before,kind,timeout=timeout)
         return hwnd,after,frame
+
+    def _click_batch(self,hwnd,counts,frame):
+        """Click only initially recognized free controls, capped by each balance."""
+        buttons={kind:self._ad_button(frame,kind) for kind in ('diamonds','emeralds')}
+        clicked={'diamonds':0,'emeralds':0}
+        for kind in ('diamonds','emeralds'):
+            used,total=counts[kind]
+            button=buttons[kind]
+            if button is None or total!=10 or not 0<=used<=10:
+                continue
+            click=button['click']
+            for _ in range(10-used):
+                self._check_cancel()
+                self._backend.click(hwnd,click['x'],click['y'],False)
+                clicked[kind]+=1
+        return clicked
+
+    def _run_batch(self,hwnd,counts,frame):
+        initial=dict(counts)
+        current,final_frame=initial,frame
+        acquired_total=0
+        reason='Loja: coleta parcial; anuncios pendentes.'
+        for _batch_number in range(10):
+            clicked=self._click_batch(hwnd,current,final_frame)
+            if not any(clicked.values()):
+                reason='Loja: anuncio gratuito indisponivel; coleta pendente.'
+                break
+            try:
+                after,final_frame=self._observe(hwnd)
+            except MacroError:
+                reason='Loja: contadores finais desconhecidos; coleta pendente.'
+                break
+            delta={kind:after[kind][0]-current[kind][0] for kind in ('diamonds','emeralds')}
+            if any(after[kind][1]!=current[kind][1]
+                   or delta[kind]<0 or after[kind][0]>10
+                   or delta[kind]>clicked[kind] for kind in ('diamonds','emeralds')):
+                reason='Loja: contadores finais inconsistentes; coleta pendente.'
+                final_frame=frame
+                break
+            advanced=sum(delta.values())
+            acquired_total+=advanced
+            current=after
+            if advanced==0:
+                reason='Loja: coleta sem progresso; anuncios pendentes.'
+                break
+            self._record(sum(value[0] for value in current.values()),'macro')
+            if sum(value[0] for value in current.values())>=20:
+                reason=''
+                break
+        else:
+            reason='Loja: limite de lotes atingido; coleta pendente.'
+        complete=sum(value[0] for value in current.values())>=20
+        if complete:
+            reason=''
+        progress=sum(value[0] for value in current.values())
+        self.outcome=ShopOutcome(progress,acquired_total,not complete,reason,bool(self.store))
+        return current,final_frame
 
     def _wait_for_increment(self,hwnd,before,kind,timeout=120):
         """Wait for Goods to show the exact reward increment after one ad click."""
@@ -226,10 +299,10 @@ class ShopRunner(MacroRunner):
                     if observed==before:
                         previous,stable=observed,0
                     else:
-                        _validate_increment(before,observed,kind)
                         stable=stable+1 if observed==previous else 1
                         previous=observed
                         if stable>=2:
+                            _validate_increment(before,observed,kind)
                             return observed,frame
             self._pause(min(.3,max(0,deadline-self._clock())))
         raise MacroError(last_error or 'Loja: incremento do anuncio nao confirmado; coleta pendente.')
@@ -242,44 +315,17 @@ class ShopRunner(MacroRunner):
         # Open Shop only from the recognized main page. The general Shop
         # surface is separately calibrated before selecting Goods.
         main=next(s for s in home_step()['screens'] if s['name']=='main')
-        entry=copy.deepcopy(main); entry.update(click={'x':404,'y':784})
+        entry=copy.deepcopy(main); entry.update(click={'x':404,'y':784},
+            max_clicks=2,retry_after_seconds=3)
         hwnd=self._flow(hwnd,'shop_open',[entry,self.shop_open])
         hwnd=self._ensure_goods(hwnd)
         counts,frame=self._observe(hwnd)
         progress=sum(value[0] for value in counts.values())
         self._record(progress,'visual')
-        acquired=0
-        while progress < 20 and acquired < 20:
-            self._check_cancel()
-            selected=None
-            for kind in ('diamonds','emeralds'):
-                used,total=counts[kind]
-                if used < total:
-                    selected=kind; break
-            if selected is None:
-                break
-            used,total=counts[selected]
-            # Never click unless both the exact expected result and the free
-            # ad button have been calibrated in the captured frame.
-            if not any(s['used']==used+1 and s['total']==total
-                       for s in self.data['counter_templates']):
-                self.outcome=ShopOutcome(progress,acquired,True,
-                    'Loja: contador desconhecido; coleta pendente.',
-                    bool(self.store))
-                break
-            if not self._ad_ready(frame,selected):
-                self.outcome=ShopOutcome(progress,acquired,True,
-                    'Loja: anuncio gratuito indisponivel; coleta pendente.',
-                    bool(self.store))
-                break
-            # One click only; exact increment validation can fail but is never retried.
-            hwnd,after,frame=self._claim_once(hwnd,selected,counts,frame)
-            counts=after; progress=sum(value[0] for value in counts.values())
-            acquired+=1; self._record(progress,'macro')
-        if self.outcome is None:
-            complete=progress>=20
-            self.outcome=ShopOutcome(progress,acquired,not complete,
-                '' if complete else 'Loja: anuncio gratuito indisponivel; coleta pendente.',bool(self.store))
+        if progress<20:
+            counts,frame=self._run_batch(hwnd,counts,frame)
+        else:
+            self.outcome=ShopOutcome(progress,0,False,'',bool(self.store))
         return super()._do_screen_flow(home_step(),hwnd)
 
 

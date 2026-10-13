@@ -87,6 +87,15 @@ class GuildNavigationProfilesTests(unittest.TestCase):
                 runner.run([guild_entry_step()])
                 self.assertEqual(backend.click_log, [(293, 110, False)])
 
+    def test_entry_retries_one_missed_adventure_navigation_click(self):
+        time = FakeTime()
+        main = png_frame(ROOT / 'tests/fixtures/slayer/home/main.png')
+        backend = FakeBackend([main] * 14 + repeated('map_dungeon') + repeated('guild_lobby'))
+        runner = MacroRunner(backend, 'Slayer Legend', foreground=False,
+                            sleep=time.sleep, clock=time.clock)
+        runner.run([guild_entry_step()])
+        self.assertEqual(backend.click_log, [(331,784,False), (331,784,False), (293,110,False)])
+
     def test_unknown_map_times_out_without_guessing_a_guild_click(self):
         time = FakeTime()
         backend = FakeBackend([solid_frame(WIDTH, HEIGHT, (0, 0, 0))])

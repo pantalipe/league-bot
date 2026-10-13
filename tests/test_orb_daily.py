@@ -19,6 +19,7 @@ if la.available():
     from league_bot.slayer.pet import PetOutcome
     from league_bot.slayer.status import BR_TZ, DailyStatusStore
     from league_bot.macro import MacroCancelled, MacroError
+    from league_bot.game import GameError
     from league_bot.texts import daily_result
 
 
@@ -242,6 +243,41 @@ class OrbDailyOutcomeTests(unittest.TestCase):
         message = daily_result(result)
         self.assertIn("pendencias: free_item_shop", message)
         self.assertIn("refinamento_skill", message)
+
+    def test_confirmed_attendance_is_not_opened_again_during_same_cycle(self):
+        runner, store, game, _ = self.make_runner(['cobinar_equip'], lambda _name: None)
+        store.mark_progress('attendance', 1, source='visual')
+        result = runner.run()
+        self.assertEqual(result.attendance, 'already_claimed')
+        self.assertNotIn('attendance_check', game.calls)
+        self.assertIn('cobinar_equip', result.done)
+
+    def test_attendance_is_checked_again_after_cycle_changes(self):
+        runner, store, game, clock = self.make_runner(['cobinar_equip'], lambda _name: None)
+        store.mark_progress('attendance', 1, source='visual')
+        clock.advance(24 * 60 * 60)
+        result = runner.run()
+        self.assertEqual(result.attendance, 'claimed')
+        self.assertIn('attendance_check', game.calls)
+
+    def test_trainer_failure_is_skipped_not_completed_and_notifies_before_continuing(self):
+        for failure in (MacroError('training unavailable'), GameError('training unavailable')):
+            with self.subTest(failure=type(failure).__name__):
+                def handler(name):
+                    if name == 'treinador':
+                        raise failure
+                runner, store, game, _ = self.make_runner(['treinador', 'collect_finished_dailys',
+                    'free_wpacs', 'cobinar_equip'], handler)
+                game.recover_home = lambda: True
+                notices = []
+                result = runner.run(on_event=notices.append)
+                self.assertEqual(result.status, 'partial')
+                self.assertIn('treinador', result.pending)
+                self.assertNotIn('treinador', result.done)
+                self.assertIn('collect_finished_dailys', result.done)
+                self.assertEqual(game.calls.count('treinador'), 1)
+                self.assertEqual(store.snapshot()['tasks']['macro:treinador']['progress'], 0)
+                self.assertTrue(any('treinador: pulado' in notice for notice in notices))
 
     def test_unknown_home_recovery_fails_daily_and_stops_following_macros(self):
         def handler(name):
