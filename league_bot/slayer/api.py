@@ -9,6 +9,7 @@ from .game import SlayerDailyGame
 from .plan import DEFAULT_MACROS
 from .selection import open_home_daily
 from .status import DailyStatusStore
+from .summons import read_summons
 
 BUILTIN_MACROS = Path(__file__).resolve().parent / "macros"
 

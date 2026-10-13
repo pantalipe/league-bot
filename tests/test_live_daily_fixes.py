@@ -77,6 +77,31 @@ class LiveDailyFixTests(unittest.TestCase):
         self.assertEqual(matching_screens(summon,steps[2]['screens']),['shop_summon'])
         self.assertEqual(matching_screens(goods,steps[2]['screens']),['shop_goods'])
 
+    def test_summon_observations_preserve_recorded_clicks_and_custom_steps(self):
+        root=Path(__file__).resolve().parents[1]
+        original=load_macro(root/'league_bot/slayer/macros/free_wpacs.json')
+        prepared=prepare_summons(original)
+        markers=[s for s in prepared if s.get('summon_observe')]
+        self.assertEqual([s['summon_observe'] for s in markers],
+                         ['summon_skill','summon_sword','summon_sword',
+                          'summon_accessory','summon_accessory','summon_skill','summon_skill'])
+        for marker in markers:
+            self.assertFalse(any('click' in screen for screen in marker['screens']))
+        self.assertEqual([s for s in prepared[3:] if not s.get('summon_observe')],original[4:])
+        custom=[dict(s) for s in original]
+        custom[8]['x']='40%'
+        self.assertEqual(prepare_summons(custom),custom)
+
+    def test_summon_modal_recovery_only_closes_without_claiming(self):
+        root=Path(__file__).resolve().parents[1]
+        screens=home_step()['screens']
+        for kind in ('weapon','accessory'):
+            frame=png_frame(root/f'tests/fixtures/slayer/summons/{kind}-3.png')
+            matches=matching_screens(frame,screens)
+            self.assertEqual(len(matches),1)
+            profile=next(s for s in screens if s['name']==matches[0])
+            self.assertEqual(profile['click'],{'x':20,'y':340})
+
     def test_quest_modal_has_only_a_close_action(self):
         root=Path(__file__).resolve().parents[1]
         frame=png_frame(root/'tests/fixtures/slayer/home/adventurers_guild.png')

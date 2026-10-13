@@ -41,6 +41,9 @@ class SlayerDailyGame(SlayerGame):
             self._backend = original_backend
 
     def run_macro(self, name):
+        if name == "free_wpacs":
+            from .summons import run_summons
+            return run_summons(self)
         if name == "mailbox":
             from .mailbox import run_mailbox
             return run_mailbox(self)

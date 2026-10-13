@@ -33,7 +33,7 @@ def prepare_dungeon_macro(name,steps):
 
 def prepare_summons(steps):
     known=load_macro(Path(__file__).parent/'macros/free_wpacs.json')
-    if len(steps)<5 or steps[:4]!=known[:4]:
+    if steps != known:
         return steps
     from .home import home_step
     from .shop import profiles
@@ -47,4 +47,12 @@ def prepare_summons(steps):
     flow=dict(action='screen_flow',terminal='shop_open',timeout=25,poll_seconds=.3,
               stable_frames=2,frame_size=[434,810],screens=[main,shop])
     select=dict(flow,terminal='shop_summon',screens=[goods,summon])
-    return [copy.deepcopy(steps[0]),flow,select,*copy.deepcopy(steps[4:])]
+    from .summons import observation_step
+    observations={7:'summon_sword',12:'summon_sword',18:'summon_accessory',
+                  23:'summon_accessory',27:'summon_skill',32:'summon_skill'}
+    suffix=[]
+    for index,step in enumerate(steps[4:],4):
+        suffix.append(copy.deepcopy(step))
+        if index in observations:
+            suffix.append(observation_step(observations[index]))
+    return [copy.deepcopy(steps[0]),flow,select,observation_step('summon_skill'),*suffix]

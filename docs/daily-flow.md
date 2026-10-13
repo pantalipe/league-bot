@@ -24,6 +24,21 @@ cliques por coordenadas antigas.
 Uma presença já confirmada no estado do ciclo atual não abre novamente a tela
 de recompensa nas retomadas. A troca de ciclo permite a próxima verificação.
 
+As invocações gratuitas mantêm o registro de execução de `free_wpacs` separado
+dos contadores visuais de Espadas, Acessórios e Habilidades. Espadas e Acessórios
+mostram `Daily limit (usados/3)` nas janelas abertas pelo botão de anúncio;
+Habilidades mostra a fração no painel Summon. A macro observa essas telas antes
+e depois das coletas, exige duas capturas iguais e só salva o contador lido com
+origem `visual`. Não adiciona cliques de coleta nem reabre a loja para conferir.
+Uma leitura desconhecida preserva o progresso anterior; terminar a macro não
+confirma os três contadores.
+
+`league_bot.slayer.api.read_summons(frame)` permite reutilizar o leitor no GUI:
+recebe uma captura e devolve somente os tipos reconhecidos e seus contadores de
+usos. Não captura janelas, clica ou escreve o estado. A calibração inicial cobre
+as capturas reais de 0/3, 1/3 e 3/3; 2/3 e outros rasters permanecem desconhecidos
+até receberem uma captura rotulada, sem aproximação para outro valor.
+
 A seleção da janela usa `Slayer Legend`, aceita o sufixo da conta e exige a
 superfície do emulador. Uma janela de navegador com texto semelhante não é
 aceita; múltiplas janelas de jogo candidatas interrompem a seleção.

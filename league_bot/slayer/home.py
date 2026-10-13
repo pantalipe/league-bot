@@ -20,6 +20,8 @@ def home_step():
     screens.extend(json.loads((Path(__file__).resolve().parent / "assets/refinement-recovery.json").read_text(encoding="utf-8")))
     from .shop import recovery_screens as shop_recovery
     screens.extend(shop_recovery())
+    from .summons import recovery_screens as summon_recovery
+    screens.extend(summon_recovery())
     from .orb import recovery_screens
     screens.extend(recovery_screens())
     from .equipment import equipment_screen
