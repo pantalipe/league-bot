@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from tests import slayer_compat as la
 import league_bot.slayer.pet as slayer_pet
-from league_bot.slayer.pet import PetRunner, remaining_cost
+from league_bot.slayer.pet import PetRunner
 
 if la.available():
     from league_bot.imaging import Frame, solid_frame
@@ -107,15 +107,14 @@ class RecordingStore:
 
 @unittest.skipUnless(la.available(), "league_bot nao encontrado (LEAGUE_BOT_DIR)")
 class PetPolicyTests(unittest.TestCase):
-    def make_runner(self, *, start=0, balances=(), store=None):
+    def make_runner(self, *, start=0, store=None):
         """Keep PetRunner's real _do_screen_flow policy; stub game navigation only."""
         time = FakeTime()
         runner = PetRunner(
             FakeBackend([]), "Slayer Legend", foreground=True,
             sleep=time.sleep, clock=time.clock, store=store, cycle="cycle",
-            balance_reader=lambda _frame: 0,
         )
-        state = {"progress": start, "balances": list(balances), "events": []}
+        state = {"progress": start, "events": []}
 
         def enter(hwnd):
             state["events"].append(("enter", state["progress"]))
@@ -128,13 +127,6 @@ class PetPolicyTests(unittest.TestCase):
         def counter(hwnd):
             state["events"].append(("counter", state["progress"]))
             return hwnd, state["progress"]
-
-        def balance(hwnd):
-            value = state["balances"].pop(0)
-            state["events"].append(("balance", state["progress"], value))
-            if isinstance(value, BaseException):
-                raise value
-            return hwnd, value
 
         def flow(hwnd, terminal, _screens):
             state["events"].append(("flow", terminal, state["progress"]))
@@ -152,8 +144,8 @@ class PetPolicyTests(unittest.TestCase):
             state["progress"] = progress
             return hwnd, count
 
-        def final_progress(hwnd, *, starting_progress, max_progress, timeout=40):
-            state["events"].append(("final", starting_progress, max_progress))
+        def final_progress(hwnd, *, starting_progress, max_progress=None, timeout=40):
+            state["events"].append(("final", starting_progress, max_progress, timeout))
             sequence = state.get("observed_sequence", [])
             observed = sequence.pop(0) if sequence else state.get("observed_final", state["progress"])
             state["progress"] = observed
@@ -162,7 +154,6 @@ class PetPolicyTests(unittest.TestCase):
         runner._enter = enter
         runner._exit = exit_pet
         runner._counter = counter
-        runner._balance = balance
         runner._flow = flow
         runner._clean_batch = clean_batch
         runner._final_progress = final_progress
@@ -174,133 +165,110 @@ class PetPolicyTests(unittest.TestCase):
         with mock.patch.object(MacroRunner, "_do_screen_flow", autospec=True, return_value=7):
             return runner._do_screen_flow({"guild_pet": True}, 7)
 
-    def test_costs_for_every_confirmed_progress_value(self):
-        self.assertEqual([remaining_cost(n) for n in range(6)], [1000, 1000, 900, 700, 400, 0])
-
-    def test_one_total_balance_check_precedes_one_panel_visit_and_all_paid_cleans(self):
+    def test_zero_progress_cleans_to_five_in_one_panel_visit(self):
         store = RecordingStore()
-        runner, state = self.make_runner(start=0, balances=[1000], store=store)
-        self.run_policy(runner)
+        runner, state = self.make_runner(start=0, store=store)
+        with mock.patch("league_bot.slayer.diamonds.read_diamonds",
+                        side_effect=AssertionError("pet flow must not read balance")) as reader:
+            self.run_policy(runner)
+        reader.assert_not_called()
         events = state["events"]
-        paid_positions = [i for i, event in enumerate(events) if event[0] == "paid"]
         self.assertEqual([event for event in events if event[0] == "batch"], [("batch", 0, 5, True)])
         self.assertEqual(len([event for event in events if event[0] == "click"]), 2 * (5 - 0))
-        self.assertEqual([event for event in events if event[0] == "final"], [("final", 0, 5)])
-        self.assertEqual(len([event for event in events if event[0] == "balance"]), 1)
+        self.assertEqual(len([event for event in events if event[0] == "final"]), 1)
         self.assertEqual(len([event for event in events if event[0] == "enter"]), 1)
-        self.assertLess(next(i for i,event in enumerate(events) if event[0] == "balance"),
-                        next(i for i,event in enumerate(events) if event[0] == "enter"))
-        self.assertEqual(len(paid_positions), 4)
         self.assertEqual(runner.outcome.progress, 5)
         self.assertFalse(runner.outcome.skipped)
         self.assertEqual([row[1] for row in store.progress], [0, 5])
 
-    def test_balance_999_collects_free_then_skips_all_paid_cleans(self):
-        runner, state = self.make_runner(start=0, balances=[999])
-        self.run_policy(runner)
-        self.assertEqual(runner.outcome.progress, 1)
-        self.assertTrue(runner.outcome.skipped)
-        self.assertIn("999", runner.outcome.reason)
-        self.assertEqual([event for event in state["events"] if event[0] == "batch"], [("batch", 0, 1, False)])
-        self.assertEqual([event for event in state["events"] if event[0] == "click"], [("click", 216, 651)])
-        self.assertEqual([event for event in state["events"] if event[0] == "paid"], [])
-
-    def test_progress_two_requires_cost_of_all_remaining_paid_cleans(self):
-        runner, state = self.make_runner(start=2, balances=[899])
-        self.run_policy(runner)
-        self.assertEqual(runner.outcome.progress, 2)
-        self.assertTrue(runner.outcome.skipped)
-        self.assertIn("900", runner.outcome.reason)
-        self.assertEqual([event for event in state["events"] if event[0] == "batch"], [("batch", 2, 0, False)])
-        self.assertEqual([event for event in state["events"] if event[0] == "paid"], [])
-
-    def test_progress_two_with_exact_900_runs_the_remaining_paid_cleans(self):
-        runner, state = self.make_runner(start=2, balances=[900])
+    def test_progress_two_cleans_remaining_three_in_one_panel_visit(self):
+        runner, state = self.make_runner(start=2)
         self.run_policy(runner)
         self.assertEqual(runner.outcome.progress, 5)
         self.assertFalse(runner.outcome.skipped)
-        self.assertEqual([event for event in state["events"] if event[0] == "paid"],
-                         [("paid", 2), ("paid", 3), ("paid", 4)])
+        self.assertEqual([event for event in state["events"] if event[0] == "batch"], [("batch", 2, 3, True)])
         self.assertEqual(len([event for event in state["events"] if event[0] == "click"]), 2 * (5 - 2))
-        self.assertEqual(len([event for event in state["events"] if event[0] == "balance"]), 1)
         self.assertEqual(len([event for event in state["events"] if event[0] == "enter"]), 1)
+
+    def test_initial_quota_five_exits_without_clean_click(self):
+        runner, state = self.make_runner(start=5)
+        self.run_policy(runner)
+        self.assertEqual(runner.outcome.progress, 5)
+        self.assertEqual([event for event in state["events"] if event[0] == "batch"], [])
+        self.assertEqual([event for event in state["events"] if event[0] == "click"], [])
 
     def test_already_complete_store_skips_ocr_balance_and_navigation(self):
         store = RecordingStore()
         store.snapshot = lambda: {"tasks": {slayer_pet.TASK: {"progress": 5, "target": 5}}}
-        runner, state = self.make_runner(start=0, balances=[], store=store)
+        runner, state = self.make_runner(start=0, store=store)
         self.run_policy(runner)
         self.assertEqual(runner.outcome.progress, 5)
-        self.assertEqual([event for event in state["events"] if event[0] == "balance"], [])
         self.assertEqual([event for event in state["events"] if event[0] == "enter"], [])
-        self.assertEqual([event for event in state["events"] if event[0] == "paid"], [])
-
-    def test_unreadable_balance_fails_before_any_paid_action(self):
-        runner, state = self.make_runner(start=1, balances=[MacroError("balance unreadable")])
-        with self.assertRaisesRegex(MacroError, "balance unreadable"):
-            self.run_policy(runner)
-        self.assertEqual([event for event in state["events"] if event[0] == "paid"], [])
-
-    def test_cancel_during_balance_check_stops_before_paid_action(self):
-        runner, state = self.make_runner(start=1, balances=[MacroCancelled("cancelled")])
-        with self.assertRaises(MacroCancelled):
-            self.run_policy(runner)
-        self.assertEqual([event for event in state["events"] if event[0] == "paid"], [])
-        self.assertEqual([event for event in state["events"] if event[0] == "enter"], [])
-
-    def test_unknown_balance_keeps_safe_free_clean_then_fails_before_paid_action(self):
-        store = RecordingStore()
-        runner, state = self.make_runner(start=0, balances=[MacroError("balance unreadable")], store=store)
-        with self.assertRaisesRegex(MacroError, "balance unreadable"):
-            self.run_policy(runner)
-        self.assertEqual(state["progress"], 1)
-        self.assertEqual([event for event in state["events"] if event[0] == "batch"], [("batch", 0, 1, False)])
-        self.assertEqual([event for event in state["events"] if event[0] == "click"], [("click", 216, 651)])
-        self.assertEqual([event for event in state["events"] if event[0] == "paid"], [])
-        self.assertEqual([row[1] for row in store.progress], [0, 1])
 
     def test_only_stable_final_progress_is_persisted_after_the_batch(self):
         store = RecordingStore()
-        runner, state = self.make_runner(start=0, balances=[1000], store=store)
-        state["observed_sequence"] = [3, 3]
+        runner, state = self.make_runner(start=0, store=store)
+        state["observed_sequence"] = [3, 3, 3]
+        state["observed_final"] = 3
         self.run_policy(runner)
         self.assertEqual(runner.outcome.progress, 3)
         self.assertTrue(runner.outcome.skipped)
-        self.assertEqual([event for event in state["events"] if event[0] == "batch"],
-                         [("batch", 0, 5, True), ("batch", 3, 2, True)])
-        self.assertEqual([row[1] for row in store.progress], [0, 3, 3])
+        batches = [event for event in state["events"] if event[0] == "batch"]
+        self.assertEqual(batches[0], ("batch", 0, 5, True))
+        self.assertGreater(len(batches), 2)
+        self.assertTrue(all(event == ("batch", 3, 2, True) for event in batches[1:]))
+        self.assertEqual(store.progress[0][1], 0)
+        self.assertTrue(all(row[1] == 3 for row in store.progress[1:]))
         self.assertTrue(all(row[0] == slayer_pet.TASK and row[2] == 5 for row in store.progress))
         self.assertTrue(all(row[3]["source"] == "visual" for row in store.progress))
 
     def test_advancing_followup_burst_completes_from_confirmed_progress_without_new_budget_read(self):
         store = RecordingStore()
-        runner, state = self.make_runner(start=0, balances=[1000], store=store)
+        runner, state = self.make_runner(start=0, store=store)
         state["observed_sequence"] = [3, 5]
         self.run_policy(runner)
         self.assertEqual(runner.outcome.progress, 5)
         self.assertFalse(runner.outcome.skipped)
         self.assertEqual([event for event in state["events"] if event[0] == "batch"],
                          [("batch", 0, 5, True), ("batch", 3, 2, True)])
-        self.assertEqual([event for event in state["events"] if event[0] == "balance"],
-                         [("balance", 0, 1000)])
         self.assertEqual([event for event in state["events"] if event[0] == "enter"],
                          [("enter", 0)])
         self.assertEqual([row[1] for row in store.progress], [0, 3, 5])
 
+    def test_initial_counter_five_skips_all_clicks_and_balance_reader_is_not_an_api(self):
+        runner, state = self.make_runner(start=5)
+        self.assertNotIn("balance_reader", __import__("inspect").signature(PetRunner).parameters)
+        with self.assertRaises(TypeError):
+            PetRunner(FakeBackend([]), "Slayer Legend", balance_reader=lambda _frame: 0)
+        self.run_policy(runner)
+        self.assertEqual(runner.outcome.progress, 5)
+        self.assertFalse(any(event[0] == "batch" for event in state["events"]))
+
+    def test_no_progress_until_timeout_leaves_actual_counter_pending(self):
+        store = RecordingStore()
+        runner, state = self.make_runner(start=2, store=store)
+        state["observed_final"] = 2
+        self.run_policy(runner)
+        self.assertEqual(runner.outcome.progress, 2)
+        self.assertTrue(runner.outcome.skipped)
+        self.assertGreater(len([event for event in state["events"] if event[0] == "batch"]), 1)
+        self.assertTrue(store.progress)
+        self.assertTrue(all(row[1] == 2 for row in store.progress))
+
     def test_unknown_counter_frame_and_ambiguous_profiles_never_authorize_a_click(self):
-        runner, _state = self.make_runner(start=0, balances=[])
+        runner, _state = self.make_runner(start=0)
         runner._last_frame = solid_frame(WIDTH, HEIGHT, (0, 0, 0))
         with mock.patch.object(slayer_pet, "matching_screens", return_value=[]):
             with self.assertRaisesRegex(MacroError, "desconhecido; nenhum gasto autorizado"):
                 PetRunner._counter(runner, 7)
 
-        runner, _state = self.make_runner(start=0, balances=[])
+        runner, _state = self.make_runner(start=0)
         runner._last_frame = png_frame(FIXTURES / "pet_0.png")
         with mock.patch.object(slayer_pet, "matching_screens", return_value=["pet_0", "pet_1"]):
             with self.assertRaisesRegex(MacroError, "desconhecido; nenhum gasto autorizado"):
                 PetRunner._counter(runner, 7)
 
-        runner, state = self.make_runner(start=0, balances=[1000])
+        runner, state = self.make_runner(start=0)
         def unknown_counter(_hwnd):
             raise MacroError("Contador ou custo do pet da guild desconhecido; nenhum gasto autorizado.")
         runner._counter = unknown_counter
@@ -312,8 +280,7 @@ class PetPolicyTests(unittest.TestCase):
     def test_real_batch_caps_to_known_remaining_and_preserves_clean_reward_click_order(self):
         backend = FakeBackend([])
         runner = PetRunner(backend, "Slayer Legend", foreground=False,
-                           sleep=FakeTime().sleep, clock=FakeTime().clock,
-                           balance_reader=lambda _frame: 0)
+                           sleep=FakeTime().sleep, clock=FakeTime().clock)
         hwnd, count = runner._clean_batch(7, progress=4, count=99, confirm_rewards=False)
         self.assertEqual((hwnd, count), (7, 1))
         self.assertEqual(backend.click_log, [(216, 651, False)])
@@ -322,8 +289,7 @@ class PetPolicyTests(unittest.TestCase):
         backend = FakeBackend([])
         time = FakeTime()
         runner = PetRunner(backend, "Slayer Legend", foreground=False,
-                           sleep=time.sleep, clock=time.clock,
-                           balance_reader=lambda _frame: 0)
+                           sleep=time.sleep, clock=time.clock)
         original_click = backend.click
         def cancel_after_first_click(hwnd, x, y, foreground):
             original_click(hwnd, x, y, foreground)
@@ -339,8 +305,7 @@ class PetPolicyTests(unittest.TestCase):
         backend = FakeBackend([reward, reward, pet_1, pet_1])
         time = FakeTime()
         runner = PetRunner(backend, "Slayer Legend", foreground=False,
-                           sleep=time.sleep, clock=time.clock,
-                           balance_reader=lambda _frame: 0)
+                           sleep=time.sleep, clock=time.clock)
         _hwnd, progress = runner._final_progress(7, starting_progress=0, max_progress=1)
         self.assertEqual(progress, 1)
         self.assertEqual(backend.click_log, [(216, 660, False)])
@@ -350,8 +315,7 @@ class PetPolicyTests(unittest.TestCase):
         backend = FakeBackend([pet_2, pet_2])
         time = FakeTime()
         runner = PetRunner(backend, "Slayer Legend", foreground=False,
-                           sleep=time.sleep, clock=time.clock,
-                           balance_reader=lambda _frame: 0)
+                           sleep=time.sleep, clock=time.clock)
         with self.assertRaisesRegex(MacroError, "diminuiu"):
             runner._final_progress(7, starting_progress=3, max_progress=5)
         self.assertEqual(backend.click_log, [])
@@ -366,7 +330,7 @@ class PetPolicyTests(unittest.TestCase):
         self.assertTrue(all(anchor["tolerance"] == 10 for anchor in paid["anchors"]))
         time = FakeTime()
         runner = PetRunner(FakeBackend([live, live]), "Slayer Legend", foreground=False,
-                           sleep=time.sleep, clock=time.clock, balance_reader=lambda _frame: 0)
+                           sleep=time.sleep, clock=time.clock)
         runner._last_frame = live
         _hwnd, progress = runner._counter(7)
         self.assertEqual(progress, 0)
@@ -380,7 +344,7 @@ class PetCalibratedScreenTests(unittest.TestCase):
         backend = FakeBackend([guild_frame])
         time = FakeTime()
         runner = PetRunner(backend, "Slayer Legend", foreground=True,
-                           sleep=time.sleep, clock=time.clock, balance_reader=lambda _frame: 0)
+                           sleep=time.sleep, clock=time.clock)
         guild = copy.deepcopy(runner.profiles["guild"])
         pet_open = runner.profiles["pet_open"]
         # Keep the introductory navigation at its already-reached guild
@@ -413,17 +377,6 @@ class PetCalibratedScreenTests(unittest.TestCase):
         counters = [s for s in slayer_pet.load_screens() if s["name"].startswith("pet_") and s["name"][4:].isdigit()]
         self.assertEqual(matching_screens(frame,counters),[])
 
-    def test_balance_requires_two_equal_reads_and_rejects_instability(self):
-        from test_slayer_cube import cube_frame
-        time = FakeTime()
-        reader = mock.Mock(side_effect=[1000,999])
-        backend = FakeBackend([cube_frame("main")])
-        runner = PetRunner(backend,"Slayer Legend",sleep=time.sleep,clock=time.clock,balance_reader=reader)
-        with self.assertRaisesRegex(MacroError,"instavel"):
-            runner._balance(7)
-        self.assertEqual(reader.call_count,2)
-        self.assertEqual(backend.click_log,[])
-
     def test_counter_and_reward_fixtures_uniquely_match_profiles(self):
         from league_bot.screens import matching_screens
 
@@ -454,7 +407,7 @@ class PetCalibratedScreenTests(unittest.TestCase):
         backend = FakeBackend(frames)
         time = FakeTime()
         runner = PetRunner(backend, "Slayer Legend", foreground=True,
-                           sleep=time.sleep, clock=time.clock, balance_reader=lambda _frame: 0)
+                           sleep=time.sleep, clock=time.clock)
         step = {"action": "screen_flow", "terminal": "pet_1", "timeout": 8,
                 "poll_seconds": .5, "stable_frames": 2, "frame_size": [WIDTH, HEIGHT],
                 "screens": [reward, next(s for s in profiles if s["name"] == "pet_1")]}
@@ -468,7 +421,7 @@ class PetCalibratedScreenTests(unittest.TestCase):
         backend = FakeBackend([frame])
         time = FakeTime()
         runner = PetRunner(backend, "Slayer Legend", foreground=True,
-                           sleep=time.sleep, clock=time.clock, balance_reader=lambda _frame: 0)
+                           sleep=time.sleep, clock=time.clock)
         terminal = copy.deepcopy(next(s for s in slayer_pet.load_screens() if s["name"] == "pet_5"))
         step = {"action": "screen_flow", "terminal": "pet_5", "timeout": 1,
                 "poll_seconds": .1, "stable_frames": 2,

@@ -114,7 +114,7 @@ class GuildNavigationProfilesTests(unittest.TestCase):
         backend = FakeBackend(repeated("map_adventure") + repeated("guild_lobby") * 2 +
                               [png_frame(pet_dir / "pet_0.png")] * 2)
         runner = PetRunner(backend, "Slayer Legend", foreground=False,
-                           sleep=time.sleep, clock=time.clock, balance_reader=lambda _frame: 0)
+                           sleep=time.sleep, clock=time.clock)
         runner._enter(7)
         self.assertEqual(backend.click_log, [(293, 110, False), (181, 773, False)])
 

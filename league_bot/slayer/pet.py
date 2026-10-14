@@ -1,4 +1,4 @@
-"""Visual guild-pet cleans with one budget check before the clean sequence."""
+"""Guild-pet clean bursts followed by visual quota confirmation."""
 import copy
 import json
 from dataclasses import dataclass
@@ -25,18 +25,10 @@ def load_screens():
     return json.loads((Path(__file__).resolve().parent / "assets/pet.json").read_text(encoding="utf-8"))
 
 
-def remaining_cost(progress):
-    return sum(100 * n for n in range(max(1, progress), 5))
-
-
 class PetRunner(MacroRunner):
-    def __init__(self, *args, store=None, cycle=None, balance_reader=None, **kwargs):
+    def __init__(self, *args, store=None, cycle=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.store, self.cycle = store, cycle
-        if balance_reader is None:
-            from .diamonds import read_diamonds
-            balance_reader = read_diamonds
-        self.balance_reader = balance_reader
         self.outcome = None
         self.profiles = {s["name"]: s for s in load_screens()}
 
@@ -78,20 +70,6 @@ class PetRunner(MacroRunner):
         name = matches[0]
         hwnd = self._flow(hwnd,name,[self.profiles[name]])
         return hwnd, int(name[-1])
-
-    def _balance(self, hwnd):
-        from .home import home_step
-        main = next(s for s in home_step()["screens"] if s["name"] == "main")
-        values = []
-        for _ in range(2):
-            hwnd = self._flow(hwnd,"main",[main])
-            values.append(self.balance_reader(self._last_frame))
-            self._check_cancel()
-        if values[0] != values[1]:
-            raise MacroError("Saldo de diamantes instavel; nenhum gasto realizado.")
-        if type(values[0]) is not int or values[0] < 0:
-            raise MacroError("Saldo de diamantes desconhecido; nenhum gasto autorizado.")
-        return hwnd, values[0]
 
     def _record(self, progress):
         if self.store:
@@ -188,15 +166,6 @@ class PetRunner(MacroRunner):
             self.outcome = PetOutcome(5)
             return hwnd
         hwnd = super()._do_screen_flow(home_step(),hwnd)
-        balance_error = None
-        try:
-            # One stable main-screen balance check authorizes the whole
-            # remaining sequence. No navigation occurs between paid cleans.
-            hwnd, balance = self._balance(hwnd)
-        except MacroCancelled:
-            raise
-        except MacroError as exc:
-            balance_error, balance = exc, None
         hwnd = self._enter(hwnd)
         hwnd, progress = self._counter(hwnd)
         self._record(progress)
@@ -205,52 +174,23 @@ class PetRunner(MacroRunner):
             self.outcome = PetOutcome(progress)
             return self._exit(hwnd)
 
-        initial_progress = progress
-        required = remaining_cost(initial_progress)
-        if balance_error is not None:
-            if progress == 0:
-                # The free action is safe at a recognized zero counter. Batch
-                # only that clean, then verify its actual result before failing.
-                hwnd, _ = self._clean_batch(hwnd, progress, 1, confirm_rewards=False)
-                hwnd, observed = self._final_progress(hwnd, starting_progress=progress,
-                                                      max_progress=1)
-                if observed < progress:
-                    raise MacroError("Contador final do pet diminuiu; progresso nao confirmado.")
-                self._record(observed)
-                hwnd = self._exit(hwnd)
-            else:
-                hwnd = self._exit(hwnd)
-            raise balance_error
-
-        if balance < required:
-            count = 1 if progress == 0 else 0
-            hwnd, attempted = self._clean_batch(hwnd, progress, count, confirm_rewards=False)
-            hwnd, observed = self._final_progress(hwnd, starting_progress=progress,
-                                                  max_progress=progress + attempted)
-            self._record(observed)
-            reason = (f"Pet da guild: {observed}/5. Saldo {balance}; precisa de {required} "
-                      "diamantes para as limpezas restantes. Etapas pagas puladas.")
-            self.outcome = PetOutcome(observed,True,reason)
-            return self._exit(hwnd)
-
-        # If a burst confirms some progress but not all of it, a bounded
-        # follow-up burst may use the initial full-budget authorization. A
-        # burst that makes no progress ends the run without replaying clicks.
-        for _ in range(5):
-            count = 5 - progress
-            if count <= 0:
+        # Daily cleans are authorized regardless of the readable balance.
+        # Repeat click bursts in this panel, even if a burst had no effect;
+        # the counter alone determines completion. Keep an operational timeout
+        # so an unresponsive game does not prevent the rest of the daily.
+        deadline = self._clock() + 40
+        while progress < 5:
+            self._check_cancel()
+            if self._clock() >= deadline:
                 break
+            count = 5 - progress
             hwnd, attempted = self._clean_batch(hwnd, progress, count)
             hwnd, observed = self._final_progress(hwnd, starting_progress=progress,
-                                                  max_progress=progress + attempted)
+                max_progress=progress + attempted, timeout=max(.3, deadline-self._clock()))
             self._record(observed)
-            if observed == 5:
-                progress = observed
-                break
-            if observed <= progress:
-                progress = observed
-                break
             progress = observed
+            if progress < 5:
+                self._pause(.3)
         self.outcome = (PetOutcome(progress) if progress == 5 else
                         PetOutcome(progress,True,
                                    f"Pet da guild: {progress}/5 limpezas confirmadas; restante pendente."))
@@ -268,7 +208,7 @@ def run_pet(game):
             def factory(backend,title,foreground,log):
                 original = previous(backend,title,foreground,log)
                 if not isinstance(original,MacroRunner):
-                    raise GameError("O pet exige o executor visual com conferencia de saldo.")
+                    raise GameError("O pet exige o executor visual com conferencia do contador.")
                 runner = PetRunner(backend,title,foreground,log,sleep=original._sleep,
                                    clock=original._clock,store=store,cycle=cycle)
                 runners.append(runner)
