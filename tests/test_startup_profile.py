@@ -58,6 +58,13 @@ class CalibratedStartupTests(unittest.TestCase):
         self.assertEqual(backend.clicks(), [(217, 405, False)])
         self.assertEqual(self.replay(['post_login', 'main_reference']).clicks(), [])
 
+    def test_resolution_failures_now_start_with_one_click(self):
+        for name in ('tap_resolution_failure_noon', 'tap_resolution_failure_afternoon'):
+            with self.subTest(name=name):
+                backend = self.replay([name, name, 'tap_clicked', 'post_login', 'main_reference'])
+                self.assertEqual(backend.clicks(), [(217, 405, False)])
+                self.assertTrue(backend.minimized)
+
     def test_wrong_geometry_stops_before_any_click(self):
         backend = FakeBackend(size=(561, 1036))
         clock = FakeTime()

@@ -38,8 +38,12 @@ Uma tela reconhecida sem `click` apenas aguarda.
 
 O aviso de save e opcional no percurso, mas sua politica e sempre confirmar
 quando reconhecido. O detector combina o botao laranja, o botao Exit cinza e o
-titulo Notification. A entrada combina o logo com tres pontos do texto que pisca,
-com tolerancia para os niveis de brilho observados. Outros avisos devem receber detectores
+titulo Notification. A entrada combina o logo, um ponto estavel do cenario e um ponto interno do
+texto que pisca, com tolerancia para os niveis de brilho observados. Em 2026-10-14,
+os dois pontos nas bordas das letras foram removidos: apos a mudanca de resolucao
+interna do jogo, eles passaram a amostrar o fundo, mesmo com captura 434 x 810.
+Os testes incluem recortes das duas falhas reais e verificam o clique unico;
+a fase escura e os estados de carregamento continuam sem clique. Outros avisos devem receber detectores
 e cliques especificos, calibrados antes de serem acrescentados.
 
 Erros preservam a ultima captura disponivel em `SLAYER_DATA_DIR/diagnostics`.

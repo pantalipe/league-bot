@@ -1,5 +1,5 @@
 {
-  "description": "Inicio reconhecido: entrada, confirmacao de save quando presente e tela principal. Cliques sem foco; perfil calibrado em 438x814.",
+  "description": "Inicio reconhecido: entrada, confirmacao de save quando presente e tela principal. Cliques sem foco; janela 438x814, captura 434x810. Entrada recalibrada em 2026-10-14.",
   "steps": [
     {
       "action": "wait_window",
@@ -31,30 +31,19 @@
               "radius": 0
             },
             {
-              "x": 0.367206,
-              "y": 0.838072,
+              "x": 0.415704,
+              "y": 0.484549,
               "color": [
-                195,
-                190,
-                185
+                71,
+                41,
+                28
               ],
-              "tolerance": 75,
+              "tolerance": 15,
               "radius": 0
             },
             {
               "x": 0.48037,
               "y": 0.8356,
-              "color": [
-                195,
-                190,
-                185
-              ],
-              "tolerance": 75,
-              "radius": 0
-            },
-            {
-              "x": 0.642032,
-              "y": 0.838072,
               "color": [
                 195,
                 190,
