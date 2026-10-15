@@ -15,6 +15,7 @@ dependencies = []
 
 [project.optional-dependencies]
 test = ["Pillow>=10", "tzdata"]
+calibration = ["Pillow>=10"]
 
 [project.scripts]
 league-bot = "league_bot.__main__:main"
@@ -23,7 +24,7 @@ league-bot = "league_bot.__main__:main"
 packages = ["league_bot", "league_bot.slayer"]
 
 [tool.setuptools.package-data]
-"league_bot.slayer" = ["assets/*.json", "macros/*.json"]
+"league_bot.slayer" = ["assets/*.json", "assets/calibration-samples/*.png", "assets/calibration-samples/*.json", "macros/*.json"]
 
 [tool.setuptools.dynamic]
 version = { attr = "league_bot.__version__" }

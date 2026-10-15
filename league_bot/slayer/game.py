@@ -30,6 +30,11 @@ class SlayerDailyGame(SlayerGame):
         pause(seconds)
 
     def _run_steps(self, steps, name, title):
+        from .calibration import CalibrationError, apply_overrides
+        try:
+            steps = apply_overrides(steps, self._settings.data_dir)
+        except CalibrationError as exc:
+            raise GameError(f"Calibragem local invalida: {exc}") from exc
         if self._click_delay_range[1] == 0:
             return super()._run_steps(steps, name, title)
         original_backend = self._backend

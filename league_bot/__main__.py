@@ -21,6 +21,15 @@ from .macro import MacroError, resolve_coord
 from .recorder import Recorder, RecorderError, vk_from_name
 from .telegram_api import TelegramAPI, TelegramError
 
+CALIBRATION_STATES = (
+    "main", "menu_open", "settings_open", "attendance_claim_ready",
+    "attendance_claimed", "attendance_claimed_settings", "unknown",
+)
+CALIBRATION_DIAGNOSE_STATES = (
+    "main", "main_entry", "menu_open", "settings_open", "attendance_open",
+    "attendance_claim_ready", "attendance_claimed", "attendance_claimed_settings",
+)
+
 log = logging.getLogger("league_bot")
 
 
@@ -75,6 +84,45 @@ def build_parser() -> argparse.ArgumentParser:
     daily_sub.add_parser("status", help="mostra contadores diarios sem executar o jogo")
     daily_set = daily_sub.add_parser("set", help="atualiza uma tarefa pelo nome")
     daily_set.add_argument("values", nargs="+")
+
+    calibrate = sub.add_parser("calibrate", help="calibra reconhecimento de telas sem clicar no jogo")
+    calibration_sub = calibrate.add_subparsers(dest="calibration_command", required=True)
+
+    def calibration_session(command):
+        command.add_argument("--session", type=Path, help="diretorio da sessao (padrao: SLAYER_DATA_DIR/calibration/session)")
+
+    capture = calibration_sub.add_parser("capture", help="captura varias imagens da tela atual para uma classe")
+    capture.add_argument("state", choices=CALIBRATION_STATES)
+    capture.add_argument("--count", type=int, default=3, help="capturas (2 a 60; padrao 3)")
+    capture.add_argument("--interval", type=float, default=0.3, help="intervalo entre capturas em segundos")
+    calibration_session(capture)
+
+    add = calibration_sub.add_parser("add", help="importa imagens locais como amostras rotuladas")
+    add.add_argument("state", choices=CALIBRATION_STATES)
+    add.add_argument("images", nargs="+", type=Path)
+    calibration_session(add)
+
+    diagnose = calibration_sub.add_parser("diagnose", help="mostra a leitura de cada anchor numa imagem")
+    diagnose.add_argument("image", type=Path)
+    diagnose.add_argument("--state", required=True, choices=CALIBRATION_DIAGNOSE_STATES)
+
+    propose = calibration_sub.add_parser("propose", help="gera candidato local sem alterar perfis ativos")
+    propose.add_argument("--search-radius", type=int, default=12, help="raio da busca em pixels (0 a 30)")
+    calibration_session(propose)
+
+    validate = calibration_sub.add_parser("validate", help="valida candidato contra todas as amostras rotuladas")
+    calibration_session(validate)
+
+    apply = calibration_sub.add_parser("apply", help="ativa candidato validado nos dados locais")
+    calibration_session(apply)
+
+    rollback = calibration_sub.add_parser("rollback", help="restaura o perfil local anterior")
+    rollback.add_argument("--data-dir", type=Path, help="diretorio de dados (padrao: SLAYER_DATA_DIR)")
+
+    guide = calibration_sub.add_parser("guide", help="orienta a captura manual das telas, sem navegar ou clicar")
+    guide.add_argument("--count", type=int, default=3, help="capturas por tela (2 a 60; padrao 3)")
+    guide.add_argument("--interval", type=float, default=0.3, help="intervalo entre capturas em segundos")
+    calibration_session(guide)
     return parser
 
 
@@ -256,6 +304,17 @@ def run(args: argparse.Namespace) -> int:
     except ConfigError as exc:
         print(f"Erro de configuracao: {exc}", file=sys.stderr)
         return 2
+    if command == "calibrate":
+        try:
+            from .calibration_cli import run_calibration
+
+            return run_calibration(args, settings, game_factory=_game)
+        except KeyboardInterrupt:
+            print("\nEncerrado.")
+            return 0
+        except (OSError, ValueError, RuntimeError, ImportError, EOFError) as exc:
+            print(f"Erro: {exc}", file=sys.stderr)
+            return 1
     setup_logging(settings.log_file)
 
     try:

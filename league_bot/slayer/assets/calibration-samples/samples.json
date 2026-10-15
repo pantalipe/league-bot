@@ -1,0 +1,34 @@
+[
+  {
+    "image": "menu-open.png",
+    "state": "menu_open"
+  },
+  {
+    "image": "menu-open-current.png",
+    "state": "menu_open"
+  },
+  {
+    "image": "settings.png",
+    "state": "settings_open"
+  },
+  {
+    "image": "settings-current.png",
+    "state": "settings_open"
+  },
+  {
+    "image": "attendance-ready.png",
+    "state": "attendance_claim_ready"
+  },
+  {
+    "image": "attendance-ready-current.png",
+    "state": "attendance_claim_ready"
+  },
+  {
+    "image": "attendance-claimed.png",
+    "state": "attendance_claimed"
+  },
+  {
+    "image": "attendance-settings.png",
+    "state": "attendance_claimed_settings"
+  }
+]

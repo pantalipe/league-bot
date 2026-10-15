@@ -13,6 +13,7 @@ Você pode usar o bot pronto ou incorporar a biblioteca `league_bot` ao seu bot 
 | Criar um bot dedicado ao Slayer Legend | [Instalação do bot próprio](#instalação-do-bot-próprio) |
 | Usar o jogo no bot do Telegram que já possui | [Guia de integração](docs/telegram-integration.md) |
 | Entender e configurar a daily Slayer da guild | [Fluxo da daily](docs/daily-flow.md) |
+| Recalibrar reconhecimento de telas com capturas locais | [Calibracao de telas](docs/calibration.md) |
 | Gravar e executar sem Telegram | [Primeira macro](#gravando-sua-primeira-macro) e [linha de comando](#linha-de-comando) |
 
 ## Requisitos
