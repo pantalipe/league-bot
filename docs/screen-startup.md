@@ -58,6 +58,10 @@ geometria 434 x 810. O teste reproduz essa captura com os dados pessoais
 removidos, verifica o reconhecimento na abertura e na daily e o fechamento
 na recuperacao da tela principal. Esses perfis JSON sao relidos a cada fluxo;
 alteracoes neles ficam disponiveis na proxima execucao, sem reiniciar o bot.
+O mesmo ajuste de renderizacao afetou o ponto do trofeu usado para reconhecer
+o menu aberto. O detector de ida e volta passou a usar um ponto interno
+compativel com as capturas antiga e atual. O replay da navegacao completa
+inclui ambas as telas atuais, de menu e presenca.
 
 ## Validacao realizada em 2026-10-07
 

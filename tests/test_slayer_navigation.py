@@ -134,6 +134,25 @@ class DailyAttendanceNavigationTests(unittest.TestCase):
         expected = [["main"], ["menu_open"], ["settings_open"], ["attendance_open"]]
         self.assertEqual([matching_screens(frame, screens) for frame in frames], expected)
 
+    def test_current_menu_rendering_completes_attendance_navigation(self):
+        nav = la.load_daily_navigation()
+        current = png_frame(FIXTURES / "menu-open-current.png")
+        self.assertEqual(matching_screens(current, [nav["menu_open"], nav["settings_open"],
+                                                   nav["attendance_open"]]), ["menu_open"])
+        backend = FakeBackend(self.navigation_frames(
+            "menu-open-current", "menu-open-current", "settings-current", "settings-current",
+            "attendance-settings", "attendance-settings",
+            "attendance-ready-current", "attendance-ready-current",
+            "attendance-claimed", "attendance-claimed",
+            "settings-current", "settings-current", "menu-open-current", "menu-open-current",
+            "main-menu", "main-menu",
+        ))
+        self.assertEqual(self.make_game(backend).check_attendance(), "claimed")
+        self.assertEqual(backend.click_log, [
+            (408, 59, False), (375, 60, False), (218, 267, False),
+            (217, 610, False), (217, 712, False), (375, 165, False), (408, 60, False),
+        ])
+
     def test_already_claimed_panel_only_closes_and_returns_to_main(self):
         backend = FakeBackend(self.navigation_frames(
             "menu-open", "menu-open", "settings", "settings",
