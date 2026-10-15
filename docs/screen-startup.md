@@ -20,6 +20,10 @@ antes de abrir o jogo ate ser preenchido.
 `prepare_window` restaura uma janela minimizada sem ativa-la e a deixa atras das
 outras. `screen_flow` observa as telas conhecidas ate reconhecer a tela terminal
 em duas capturas consecutivas (configuravel por `stable_frames`, minimo 2).
+Uma variante visual da mesma tela final pode ser declarada em
+`terminal_aliases`. Cada alias precisa existir em `screens`, nao pode definir
+clique e exige as mesmas observacoes estaveis; telas ambiguas continuam
+interrompendo o fluxo. Black Orb usa isso para os paineis antigo e atual.
 Os cliques dessa acao sempre usam segundo plano, mesmo quando macros antigas
 estao configuradas para cliques reais.
 

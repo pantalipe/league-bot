@@ -11,6 +11,8 @@ def load_screens():
 def home_step():
     from .navigation import load_daily_navigation, load_attendance_screens
     screens = load_screens()
+    from .scrolls import recovery_screens as scroll_recovery
+    screens.extend(scroll_recovery())
     from .battle_navigation import recovery_screens as battle_recovery
     from .quest_navigation import recovery_screens as quest_recovery
     screens.extend(battle_recovery())

@@ -4,7 +4,7 @@ import copy
 from pathlib import Path
 
 from league_bot.game import GameError
-from league_bot.macro import MacroCancelled, MacroRunner
+from league_bot.macro import MacroCancelled, MacroError, MacroRunner
 from league_bot.screens import matching_screens
 from .shop import _white
 from .status import DailyStatusError
@@ -14,6 +14,15 @@ TASKS = ('summon_sword', 'summon_accessory', 'summon_skill')
 
 def profiles():
     return json.loads((Path(__file__).parent / 'assets/summons.json').read_text(encoding='utf-8'))
+
+
+def read_summon_menu(frame, data=None):
+    """Return a specifically recognized summon menu, without reading a quota."""
+    data = data or profiles()
+    if frame is None or (frame.width, frame.height) != tuple(data['frame_size']):
+        return None
+    matches = matching_screens(frame, data.get('menu_screens', []))
+    return matches[0] if len(matches) == 1 else None
 
 
 def recovery_screens():
@@ -80,11 +89,14 @@ def record_summons(store, readings, cycle):
         store.mark_progress(task,progress,3,source='visual',expected_cycle=cycle)
 
 
-def observation_step(task):
+def observation_step(task, *, allow_menu=False):
     screen=next(s for s in profiles()['screens'] if s['name']==task)
-    return {'action':'screen_flow','summon_observe':task,'screens':[screen],
+    step={'action':'screen_flow','summon_observe':task,'screens':[screen],
             'terminal':task,'timeout':3,'poll_seconds':.3,'stable_frames':2,
             'frame_size':[434,810]}
+    if allow_menu:
+        step['summon_allow_menu']=True
+    return step
 
 
 class SummonRunner(MacroRunner):
@@ -108,6 +120,11 @@ class SummonRunner(MacroRunner):
             self._last_frame=frame
             readings=read_summons(frame) if self._backend.client_size(hwnd)==(434,810) else {}
             current=readings.get(task)
+            if (read_summon_menu(frame) == 'summon_equipment'
+                    and current is None and not step.get('summon_allow_menu')):
+                # The recorded macro's next summon buttons spend diamonds. This
+                # combined menu has no safe quota for the pending item action.
+                raise MacroError('Invocacoes: menu de equipamento reconhecido; clique registrado nao autorizado.')
             stable=stable+1 if current is not None and current==previous else (1 if current is not None else 0)
             previous=current
             if stable>=2:

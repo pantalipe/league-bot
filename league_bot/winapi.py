@@ -9,6 +9,7 @@ import time
 from typing import List, Optional, Tuple
 
 from .backend import InputSample
+from .geometry import clip_viewport
 from .imaging import Frame
 
 IS_WINDOWS = sys.platform == "win32"
@@ -158,6 +159,24 @@ if IS_WINDOWS:
             rect = wintypes.RECT()
             self._u.GetClientRect(hwnd, ctypes.byref(rect))
             return (rect.right - rect.left, rect.bottom - rect.top)
+
+        def viewport(self, hwnd: int) -> Tuple[int, int, int, int]:
+            """Return the emulator surface rectangle in root client coordinates."""
+            child = self._find_emulator_surface(hwnd)
+            width, height = self.client_size(child)
+            if width <= 0 or height <= 0:
+                raise OSError("emulator surface has an empty client area")
+            origin = wintypes.POINT(0, 0)
+            if not self._u.ClientToScreen(child, ctypes.byref(origin)):
+                raise self._last_win32_error("could not map emulator viewport to screen")
+            if not self._u.ScreenToClient(hwnd, ctypes.byref(origin)):
+                raise self._last_win32_error("could not map emulator viewport into game client")
+            root_width, root_height = self.client_size(hwnd)
+            try:
+                return clip_viewport((origin.x, origin.y), (width, height),
+                                     (root_width, root_height), max_overflow=8)
+            except ValueError as exc:
+                raise OSError(str(exc)) from exc
 
         # -- capture -----------------------------------------------------------
 
@@ -319,6 +338,18 @@ if IS_WINDOWS:
                 x = rect.left if x is None else x
                 y = rect.top if y is None else y
             self._u.SetWindowPos(hwnd, None, x, y, width, height, _SWP_NOZORDER | _SWP_NOACTIVATE)
+
+        def move_position(self, hwnd: int, x: Optional[int], y: Optional[int]) -> None:
+            """Move the outer window without changing its current physical size."""
+            if x is None or y is None:
+                rect = wintypes.RECT()
+                if not self._u.GetWindowRect(hwnd, ctypes.byref(rect)):
+                    raise self._last_win32_error("could not read game window position")
+                x = rect.left if x is None else x
+                y = rect.top if y is None else y
+            if not self._u.SetWindowPos(hwnd, None, x, y, 0, 0,
+                                        _SWP_NOZORDER | _SWP_NOACTIVATE | _SWP_NOSIZE):
+                raise self._last_win32_error("could not move game window without resizing")
 
 else:
 

@@ -20,7 +20,7 @@ if la.available():
     from league_bot.macro import MacroCancelled, MacroError, MacroRunner
     from league_bot.screens import matching_screens
     from league_bot.slayer.home import home_step
-    from league_bot.slayer.orb import OrbRunner, OrbState, classify, profiles
+    from league_bot.slayer.orb import OrbRunner, OrbState, _current_accessories_screen, classify, profiles
 
 
 FIXTURES = ROOT / "tests" / "fixtures" / "slayer" / "orb"
@@ -75,6 +75,49 @@ class OrbClassificationTests(unittest.TestCase):
                 self.assertEqual(matching_screens(orb_frame(fixture), screens), ["orb_panel"])
                 with self.assertRaises(MacroError):
                     classify(orb_frame(fixture), self.data)
+
+    def test_current_accessories_layout_and_legacy_fixture_are_both_recognized(self):
+        current = png_frame(ROOT / "tests" / "fixtures" / "slayer" / "orb-current-accessories.png")
+        legacy = orb_frame("accessories")
+        self.assertEqual(matching_screens(current, [_current_accessories_screen()]),
+                         ["orb_accessories_current"])
+        self.assertEqual(matching_screens(legacy, [
+            next(screen for screen in self.data["screens"] if screen["name"] == "orb_accessories")
+        ]), ["orb_accessories"])
+        # The fixture keeps only navigation and the Batch Combine area; account
+        # details and the gameplay scene are blacked out.
+        self.assertEqual(current.pixel(20, 100), (0, 0, 0))
+
+    def test_current_panel_and_legacy_panel_have_distinct_signatures_and_recovery(self):
+        current = png_frame(ROOT / "tests" / "fixtures" / "slayer" / "orb-current-panel.png")
+        legacy = orb_frame("orb_panel")
+        current_screen = next(s for s in self.data["screens"] if s["name"] == "orb_panel_current")
+        legacy_screen = next(s for s in self.data["screens"] if s["name"] == "orb_panel")
+        self.assertEqual(matching_screens(current, [current_screen]), ["orb_panel_current"])
+        self.assertEqual(matching_screens(legacy, [legacy_screen]), ["orb_panel"])
+        recovery = {s["name"]: s for s in __import__("league_bot.slayer.orb", fromlist=["recovery_screens"]).recovery_screens()}
+        self.assertEqual(recovery["home_close_orb_panel"]["click"], {"x": 43, "y": 773})
+        self.assertEqual(recovery["home_close_orb_panel_current"]["click"], {"x": 41, "y": 779})
+        self.assertEqual(recovery["home_close_orb_modal_current"]["click"], {"x": 217, "y": 760})
+
+    def test_current_modal_classifies_only_the_observed_free_counter(self):
+        current = png_frame(ROOT / "tests" / "fixtures" / "slayer" / "orb-current-modal.png")
+        self.assertEqual(classify(current, self.data), OrbState("free_ready", 0))
+        self.assertEqual(matching_screens(current, [next(
+            screen for screen in self.data["screens"] if screen["name"] == "orb_modal_current"
+        )]), ["orb_modal_current"])
+        counter_mask = next(c for c in self.data["counters"]
+                            if c["used"] == 0 and c["total"] == 1
+                            and len(c["mask"]) == 14 and len(c["mask"][0]) == 32)
+        self.assertEqual((counter_mask["used"], counter_mask["total"]), (0, 1))
+        self.assertEqual(classify(orb_frame("ad_ready"), self.data), OrbState("ad_ready", 1))
+
+    def test_current_cooldown_classifies_zero_of_two_as_progress_one(self):
+        current = png_frame(ROOT / "tests" / "fixtures" / "slayer" / "orb-current-cooldown.png")
+        self.assertEqual(classify(current, self.data), OrbState("cooldown", 1))
+        self.assertEqual(matching_screens(current, [next(
+            screen for screen in self.data["screens"] if screen["name"] == "orb_modal_current"
+        )]), ["orb_modal_current"])
 
     def test_unrecognized_or_cost_changed_button_fails_closed(self):
         frame = orb_frame("free_ready")
@@ -173,7 +216,8 @@ class OrbRunnerTests(unittest.TestCase):
     def test_home_and_startup_recovery_include_orb_panel_and_modal_close_actions(self):
         home_screens = {screen["name"]: screen for screen in home_step()["screens"]}
         for name, point in (("home_close_orb_modal", (217, 750)),
-                            ("home_close_orb_panel", (43, 773))):
+                            ("home_close_orb_panel", (43, 773)),
+                            ("home_close_orb_panel_current", (41, 779))):
             with self.subTest(name=name):
                 self.assertEqual(home_screens[name]["click"], {"x": point[0], "y": point[1]})
 
@@ -191,6 +235,37 @@ class OrbRunnerTests(unittest.TestCase):
         by_name = {screen["name"]: screen for screen in startup["screens"]}
         self.assertIn("home_close_orb_modal", by_name)
         self.assertIn("home_close_orb_panel", by_name)
+
+    def test_current_open_panel_uses_one_guarded_navigation_click_to_open_modal(self):
+        runner = self.make_runner()
+        frame = png_frame(ROOT / "tests" / "fixtures" / "slayer" / "orb-current-panel.png")
+        runner._flow = mock.Mock(return_value=runner._backend.hwnd)
+        with mock.patch.object(runner._backend, "capture", return_value=frame):
+            self.assertEqual(runner._open_modal(runner._backend.hwnd), runner._backend.hwnd)
+        self.assertEqual(self.backend.click_log, [])
+        args = runner._flow.call_args.args
+        self.assertEqual(args[1], "orb_modal_current")
+        click_screen = args[2][0]
+        self.assertEqual(click_screen["click"], {"x": 380, "y": 770})
+        self.assertNotIn("max_clicks", click_screen)
+
+    def test_current_panel_is_a_terminal_for_panel_waits(self):
+        runner = self.make_runner()
+        runner._backend.frames = [png_frame(
+            ROOT / "tests" / "fixtures" / "slayer" / "orb-current-panel.png"
+        )]
+        screens = [runner.screens["orb_panel"], runner.screens["orb_panel_current"]]
+        self.assertEqual(runner._flow(runner._backend.hwnd, "orb_panel", screens),
+                         runner._backend.hwnd)
+        self.assertEqual(runner._backend.click_log, [])
+
+    def test_current_cooldown_is_stable_without_clicking_obtain(self):
+        runner = self.make_runner()
+        runner._backend.frames = [png_frame(
+            ROOT / "tests" / "fixtures" / "slayer" / "orb-current-cooldown.png"
+        )]
+        self.assertEqual(runner._state(runner._backend.hwnd), OrbState("cooldown", 1))
+        self.assertEqual(runner._backend.click_log, [])
 
 
 if __name__ == "__main__":

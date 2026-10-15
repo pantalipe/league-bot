@@ -17,6 +17,8 @@ class SlayerDailyGame(SlayerGame):
         self._action_rng = action_rng if action_rng is not None else random.Random()
         self._click_delay_range = normalize_delay_range(click_delay_range)
         super().__init__(*args, **kwargs)
+        from league_bot.geometry import wrap_backend
+        self._backend = wrap_backend(self._backend, self._settings.data_dir)
         self._status_store = status_store
         self._final_position = final_position
         from .api import open_library
@@ -30,9 +32,23 @@ class SlayerDailyGame(SlayerGame):
         pause(seconds)
 
     def _run_steps(self, steps, name, title):
+        from league_bot.screens import calibrated_matching
+        cache = {}
+        def profiles(screens):
+            import json
+            key = json.dumps(screens, sort_keys=True)
+            if key not in cache:
+                cache[key] = self._calibrate_screen(dict(action="screen_flow", screens=screens,
+                                                        frame_size=[434, 810]))["screens"]
+            return cache[key]
+        with calibrated_matching(profiles):
+            return self._run_calibrated_steps(steps, name, title)
+
+    def _run_calibrated_steps(self, steps, name, title):
         from .calibration import CalibrationError, apply_overrides
         try:
-            steps = apply_overrides(steps, self._settings.data_dir)
+            steps = [self._calibrate_screen(step) if step.get("action") == "screen_flow" else step
+                     for step in steps]
         except CalibrationError as exc:
             raise GameError(f"Calibragem local invalida: {exc}") from exc
         if self._click_delay_range[1] == 0:
@@ -45,7 +61,26 @@ class SlayerDailyGame(SlayerGame):
         finally:
             self._backend = original_backend
 
+    def _calibrate_screen(self, step):
+        # Specialized runners create navigation flows during execution too.
+        from .calibration import CalibrationError, apply_overrides
+        try:
+            from .calibration_global import transform
+            return apply_overrides([transform(step, self._settings.data_dir)], self._settings.data_dir)[0]
+        except ValueError as exc:
+            raise MacroError(f"Calibragem local invalida: {exc}") from exc
+
+    def _calibrate_step(self, step):
+        from .calibration_global import transform
+        try:
+            return transform(step, self._settings.data_dir)
+        except ValueError as exc:
+            raise MacroError(f"Calibragem local invalida: {exc}") from exc
+
     def run_macro(self, name):
+        if name == "ativar_scrolls":
+            from .scrolls import run_scrolls
+            return run_scrolls(self)
         if name == "free_wpacs":
             from .summons import run_summons
             return run_summons(self)

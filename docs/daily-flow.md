@@ -24,6 +24,17 @@ cliques por coordenadas antigas.
 Uma presença já confirmada no estado do ciclo atual não abre novamente a tela
 de recompensa nas retomadas. A troca de ciclo permite a próxima verificação.
 
+Os scrolls usam os quatro contadores `Daily limit (usados/2)` do painel
+`Ad Items`. Limites esgotados são pulados. Cada ativação recebe um único
+clique e exige duas leituras iguais do incremento antes de prosseguir; anúncios
+e transições desconhecidos recebem até 120 segundos de espera, sem repetir
+a ativação. Se o anúncio voltar à tela principal, o executor pode reabrir o
+painel uma vez para conferir. Um contador desconhecido deixa a tarefa pendente.
+A recuperação reconhece esse painel e usa apenas o X para fechá-lo.
+
+A calibragem local também é aplicada aos fluxos criados durante a execução
+por runners especializados, incluindo a navegação de Black Orb e scrolls.
+
 As invocações gratuitas mantêm o registro de execução de `free_wpacs` separado
 dos contadores visuais de Espadas, Acessórios e Habilidades. Espadas e Acessórios
 mostram `Daily limit (usados/3)` nas janelas abertas pelo botão de anúncio;

@@ -55,4 +55,5 @@ def prepare_summons(steps):
         suffix.append(copy.deepcopy(step))
         if index in observations:
             suffix.append(observation_step(observations[index]))
-    return [copy.deepcopy(steps[0]),flow,select,observation_step('summon_skill'),*suffix]
+    return [copy.deepcopy(steps[0]),flow,select,
+            observation_step('summon_skill', allow_menu=True),*suffix]

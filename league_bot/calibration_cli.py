@@ -79,6 +79,9 @@ def _validate(session: Path) -> dict:
 
 def run_calibration(args, settings: Settings, game_factory=None) -> int:
     """Run one calibration command; offline operations never construct a game/backend."""
+    if args.calibration_command == "all":
+        from .calibration_global_cli import run
+        return run(args, settings, game_factory)
     session = _session(args, settings) if hasattr(args, "session") else None
     command = args.calibration_command
     if command == "diagnose":

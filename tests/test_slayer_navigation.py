@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -54,6 +55,11 @@ def frame_with_main_anchors(path: Path, anchors: list[dict]) -> Frame:
 
 @unittest.skipUnless(la.available(), "league_bot nao encontrado (LEAGUE_BOT_DIR)")
 class DailyAttendanceNavigationTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.data_dir = Path(directory.name)
+
     def make_game(self, backend):
         self.time = FakeTime()
         configured = la.load_settings(
@@ -61,6 +67,7 @@ class DailyAttendanceNavigationTests(unittest.TestCase):
         )
         settings = SimpleNamespace(**configured.__dict__)
         settings.foreground_input = True
+        settings.data_dir = self.data_dir
         return la.HomeSlayerGame(
             settings, backend,
             runner_factory=lambda b, title, foreground, log: MacroRunner(

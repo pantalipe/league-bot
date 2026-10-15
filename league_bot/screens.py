@@ -2,10 +2,24 @@
 from __future__ import annotations
 
 import math
+from contextlib import contextmanager
+from contextvars import ContextVar
 from numbers import Real
 from typing import Any
 
 from .imaging import Frame
+
+_active_transform = ContextVar("screen_calibration_transform", default=None)
+
+
+@contextmanager
+def calibrated_matching(transform):
+    """Scope local profiles to this run, including specialized counter readers."""
+    token = _active_transform.set(transform)
+    try:
+        yield
+    finally:
+        _active_transform.reset(token)
 
 
 class ScreenError(ValueError):
@@ -87,6 +101,9 @@ def matching_screens(frame: Frame | None, screens: list[dict]) -> list[str]:
     Returning all matches lets callers stop safely when calibration makes a frame
     ambiguous. A missing or unusable frame has no matches.
     """
+    transform = _active_transform.get()
+    if transform is not None:
+        screens = transform(screens)
     _validate_screens(screens)
     if frame is None or not isinstance(frame, Frame):
         return []

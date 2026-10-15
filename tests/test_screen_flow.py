@@ -27,6 +27,18 @@ def flow(**overrides):
 
 
 class ScreenFlowTests(unittest.TestCase):
+    def test_terminal_render_alias_completes_without_clicking(self):
+        step = flow(terminal_aliases=["main_current"])
+        step["screens"].append(state("main_current",220))
+        self.backend.frames = [(220,220,220)] * 2
+        self.runner.run([step])
+        self.assertEqual(self.backend.clicks(),[])
+
+    def test_terminal_aliases_cannot_hide_clicks_or_unknown_states(self):
+        for aliases in (["tap"], ["missing"], "main", [None]):
+            with self.subTest(aliases=aliases), self.assertRaises(MacroError):
+                validate_steps([flow(terminal_aliases=aliases)])
+
     def setUp(self):
         self.backend = FakeBackend(size=(10, 10))
         self.time = FakeTime()

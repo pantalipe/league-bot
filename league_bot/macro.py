@@ -42,6 +42,13 @@ def resolve_coord(value: Any, dimension: int) -> int:
 
     Percentages keep clicks on target when the game scales its UI with the window size.
     """
+    if isinstance(value, dict):
+        fraction = value.get("relative")
+        if (set(value) != {"relative"} or isinstance(fraction, bool)
+                or not isinstance(fraction, (int, float)) or not math.isfinite(fraction)
+                or not 0 <= fraction <= 1):
+            raise MacroError("relative coordinate must be {'relative': finite number from 0 to 1}")
+        return round(fraction * (dimension - 1))
     if value == "center":
         return dimension // 2
     if isinstance(value, str):
@@ -86,6 +93,11 @@ def validate_steps(steps: Any) -> None:
         if action == "screen_flow":
             try:
                 validate_screens(step["screens"], step["terminal"])
+                aliases = step.get("terminal_aliases", [])
+                if not isinstance(aliases, list) or any(not isinstance(name, str) for name in aliases):
+                    raise MacroError("terminal_aliases must be a list of non-clickable screen names")
+                for alias in aliases:
+                    validate_screens(step["screens"], alias)
                 for screen in step["screens"]:
                     if "click" in screen:
                         for axis in ("x", "y"):
@@ -147,6 +159,9 @@ class MacroRunner:
         self._cancelled = threading.Event()
         self.diagnostics_dir = diagnostics_dir
         self._last_frame = None
+        self.screen_transform = None
+        self.step_transform = None
+        self._current_step = None
 
     def cancel(self) -> None:
         self._cancelled.set()
@@ -169,6 +184,7 @@ class MacroRunner:
         hwnd: Optional[int] = None
         for number, step in enumerate(steps, 1):
             self._check_cancel()
+            self._current_step = step
             handler = getattr(self, "_do_" + step["action"])
             try:
                 hwnd = handler(step, hwnd)
@@ -190,6 +206,10 @@ class MacroRunner:
             directory.mkdir(parents=True, exist_ok=True)
             path = directory / f"screen-failure-{uuid4().hex}.png"
             path.write_bytes(self._last_frame.to_png())
+            path.with_suffix(".json").write_text(json.dumps({
+                "version": 1, "frame_size": [self._last_frame.width, self._last_frame.height],
+                "step": self._current_step,
+            }, indent=2), encoding="utf-8")
             return path
         except OSError as exc:
             self._log(f"could not save failure screenshot: {exc}")
@@ -210,6 +230,10 @@ class MacroRunner:
         Tolerates the window briefly disappearing: login/splash and main windows
         of some apps do not share a handle, so the handle is re-resolved by title.
         """
+        if self.step_transform is not None:
+            step = self.step_transform(step)
+            validate_steps([step])
+        self._current_step = step
         target = [int(c) for c in step["color"]]
         tolerance = step.get("tolerance", 20)
         radius = int(step.get("radius", 0))  # 0 = the exact pixel; N = mean of the (2N+1)^2 patch around it
@@ -228,6 +252,7 @@ class MacroRunner:
                 x_px = resolve_coord(step["x"], width)
                 y_px = resolve_coord(step["y"], height)
                 frame = self._backend.capture(hwnd)
+                self._last_frame = frame
                 pixel = None
                 if frame is not None:
                     pixel = frame.average(x_px, y_px, radius) if radius else frame.pixel(x_px, y_px)
@@ -257,6 +282,10 @@ class MacroRunner:
         unless navigation explicitly opts into delayed, bounded retries.
         This action always uses background input, independent of legacy macro mode.
         """
+        if self.screen_transform is not None:
+            step = self.screen_transform(step)
+            validate_steps([step])
+        self._current_step = step
         screens = {screen["name"]: screen for screen in step["screens"]}
         deadline = self._clock() + step.get("timeout", 120)
         poll = step.get("poll_seconds", 0.5)
@@ -292,7 +321,7 @@ class MacroRunner:
             stable = stable + 1 if current is not None and current == candidate else (1 if current else 0)
             candidate = current
             if current is not None and stable >= stable_required:
-                if current == step["terminal"]:
+                if current in {step["terminal"], *step.get("terminal_aliases", [])}:
                     self._log(f"screen flow complete: {current}")
                     return hwnd
                 screen = screens[current]
@@ -339,6 +368,9 @@ class MacroRunner:
         return hwnd
 
     def _do_click(self, step: Step, hwnd: Optional[int]) -> int:
+        if self.step_transform is not None:
+            step = self.step_transform(step)
+            validate_steps([step])
         hwnd = self._do_prepare_window(step, hwnd)
         width, height = self._backend.client_size(hwnd)
         self._backend.click(hwnd, resolve_coord(step["x"], width), resolve_coord(step["y"], height), self._foreground)

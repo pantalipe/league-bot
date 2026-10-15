@@ -53,7 +53,8 @@ class SlayerPacingTests(unittest.TestCase):
 
         self.factory = factory
         self.game = SlayerDailyGame(
-            Settings(window_title="Slayer Legend", macros_dir=Path(self.temp.name)),
+            Settings(window_title="Slayer Legend", macros_dir=Path(self.temp.name),
+                     data_dir=Path(self.temp.name) / "state"),
             self.backend, runner_factory=factory, sleep=self.clock.sleep,
         )
 

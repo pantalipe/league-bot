@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import sys
 import tempfile
 import unittest
@@ -24,10 +25,12 @@ except ModuleNotFoundError:
 
 if la.available():
     from league_bot.imaging import Frame
-    from league_bot.macro import MacroCancelled, MacroRunner
+    from league_bot.macro import MacroCancelled, MacroError, MacroRunner
+    from league_bot.screens import matching_screens
     from league_bot.slayer.status import DailyStatusStore
+    from league_bot.slayer.shop import profiles as shop_profiles
     from league_bot.slayer.summons import (
-        SummonRunner, observation_step, profiles, read_summons,
+        SummonRunner, observation_step, profiles, read_summon_menu, read_summons,
         record_summons, run_summons,
     )
 
@@ -38,6 +41,10 @@ COUNTS = {"weapon": "summon_sword", "accessory": "summon_accessory", "skill": "s
 
 def summon_frame(kind: str, used: int):
     return png_frame(FIXTURES / f"{kind}-{used}.png")
+
+
+def current_summon_menu_frame():
+    return png_frame(ROOT / "tests/fixtures/slayer/summons-current.png")
 
 
 class FrameBackend(FakeBackend):
@@ -72,6 +79,19 @@ class FakeStatus:
 
 @unittest.skipUnless(la.available() and _HAS_IMAGES, "Slayer image dependencies unavailable")
 class SummonReaderTests(unittest.TestCase):
+    def test_current_equipment_menu_is_recognized_without_inventing_a_quota(self):
+        frame = current_summon_menu_frame()
+        self.assertEqual(read_summon_menu(frame), "summon_equipment")
+        self.assertEqual(read_summons(frame), {})
+        self.assertIsNone(read_summon_menu(png_frame(ROOT / "tests/fixtures/slayer/home/main.png")))
+
+    def test_shop_summon_navigation_profile_matches_old_and_current_renderings(self):
+        profile = json.loads((ROOT / "league_bot/slayer/assets/summon-navigation.json").read_text())
+        goods = next(screen for screen in shop_profiles()["screens"] if screen["name"] == "shop_goods")
+        for frame in (current_summon_menu_frame(), png_frame(ROOT / "tests/fixtures/slayer/home/shop_summon.png")):
+            with self.subTest(frame=frame):
+                self.assertEqual(matching_screens(frame, [goods, profile]), ["shop_summon"])
+
     def test_all_labelled_counter_fixtures_read_as_used_counts(self):
         for kind, task in COUNTS.items():
             for used in (0, 1, 3):
@@ -157,6 +177,18 @@ class SummonObserverTests(unittest.TestCase):
         runner = self.make_runner([unknown], status=status)
         runner.run([observation_step("summon_skill")])
         self.assertEqual(status.records, [])
+        self.assertEqual(self.backend.clicks(), [])
+
+    def test_equipment_menu_stops_before_recorded_paid_summon_click(self):
+        runner = self.make_runner([current_summon_menu_frame()])
+        paid_summon = {"action": "click", "x": "57.26%", "y": "56.11%"}
+        with self.assertRaisesRegex(MacroError, "clique registrado nao autorizado"):
+            runner.run([observation_step("summon_sword"), paid_summon])
+        self.assertEqual(self.backend.clicks(), [])
+
+    def test_initial_menu_observation_allows_the_free_video_branch(self):
+        runner = self.make_runner([current_summon_menu_frame()])
+        runner.run([observation_step("summon_skill", allow_menu=True)])
         self.assertEqual(self.backend.clicks(), [])
 
     def test_cancellation_and_cycle_rollover_stop_observation_without_clicks(self):

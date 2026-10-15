@@ -19,7 +19,8 @@ BASE_ENV = {"SLAYER_WINDOW_TITLE": "Slayer Legend", "TELEGRAM_TOKEN": "", "ALLOW
 def run_cli(*argv, env=None):
     out, err = io.StringIO(), io.StringIO()
     environment = dict(BASE_ENV, **(env or {}))
-    with mock.patch.dict(os.environ, environment), \
+    with tempfile.TemporaryDirectory() as state_dir, \
+            mock.patch.dict(os.environ, dict({"SLAYER_DATA_DIR":state_dir}, **environment)), \
             mock.patch.object(cli, "_backend", lambda: FakeBackend(fill=(230, 230, 230))), \
             mock.patch.object(cli.SlayerGame, "is_running", return_value=False), \
             contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):

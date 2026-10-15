@@ -23,7 +23,32 @@ def recovery_screens():
         screen = copy.deepcopy(screens[name])
         screen.update(name='home_close_' + name, click=click)
         result.append(screen)
+    current = copy.deepcopy(next(s for s in screens.values() if s['name'] == 'orb_panel_current'))
+    current.update(name='home_close_orb_panel_current', click={'x':41,'y':779})
+    result.append(current)
+    current_modal = copy.deepcopy(screens['orb_modal_current'])
+    current_modal.update(name='home_close_orb_modal_current', click={'x':217,'y':760})
+    result.append(current_modal)
     return result
+
+
+def _current_accessories_screen():
+    """Recognize the current Accessories layout by its tab and action control.
+
+    The game moved the selected tab label down a few pixels and added the
+    Batch Combine control, invalidating the old sampled text raster. Keep that
+    legacy profile for its fixtures and add a small, independent signature for
+    the new layout. Equipment navigation anchors constrain the screen; the two
+    samples confirm Accessories and its visible page action.
+    """
+    from .equipment import equipment_screen
+    screen = equipment_screen()
+    screen['name'] = 'orb_accessories_current'
+    screen['anchors'].extend([
+        {'x': 120 / 433, 'y': 428 / 809, 'color': [255, 255, 255], 'tolerance': 20, 'radius': 0},
+        {'x': 200 / 433, 'y': 710 / 809, 'color': [227, 141, 30], 'tolerance': 20, 'radius': 1},
+    ])
+    return screen
 
 
 def _white(rgb):
@@ -62,8 +87,9 @@ class OrbState:
 
 def classify(frame, data=None):
     data = data or profiles()
-    modal = next(s for s in data['screens'] if s['name'] == 'orb_modal')
-    if matching_screens(frame,[modal]) != ['orb_modal']:
+    modal_screens = [s for s in data['screens'] if s['name'] in ('orb_modal','orb_modal_current')]
+    modal_matches = matching_screens(frame,modal_screens)
+    if len(modal_matches) != 1:
         raise MacroError('Painel Black Orb desconhecido; nenhuma coleta autorizada.')
     # The observed state after both ad claims replaces Daily limit with a
     # feather icon and price. Recognize it only to stop; never click its Obtain.
@@ -116,10 +142,18 @@ class OrbRunner(MacroRunner):
             raise MacroCancelled('O ciclo diario mudou durante a coleta Black Orb.')
 
     def _flow(self,hwnd,terminal,screens,timeout=20):
-        return super()._do_screen_flow(dict(action='screen_flow',terminal=terminal,
-            screens=screens,timeout=timeout,poll_seconds=.3,stable_frames=2,frame_size=[434,810]),hwnd)
+        step = dict(action='screen_flow',terminal=terminal,screens=screens,
+            timeout=timeout,poll_seconds=.3,stable_frames=2,frame_size=[434,810])
+        if terminal == 'orb_panel' and any(s['name'] == 'orb_panel_current' for s in screens):
+            step['terminal_aliases'] = ['orb_panel_current']
+        return super()._do_screen_flow(step,hwnd)
 
     def _open_modal(self,hwnd):
+        current = self.screens['orb_panel_current']
+        if matching_screens(self._backend.capture(hwnd), [current]) == ['orb_panel_current']:
+            panel = copy.deepcopy(current)
+            panel.update(click={'x':380,'y':770})
+            return self._flow(hwnd,'orb_modal_current',[panel,self.screens['orb_modal_current']])
         panel = copy.deepcopy(self.screens['orb_panel'])
         panel.update(click={'x':380,'y':770},max_clicks=2,retry_after_seconds=3)
         return self._flow(hwnd,'orb_modal',[panel,self.screens['orb_modal']])
@@ -169,7 +203,10 @@ class OrbRunner(MacroRunner):
         self._backend.click(hwnd,150,417,False)
         accessories = copy.deepcopy(self.screens['orb_accessories'])
         accessories.update(click={'x':401,'y':453},max_clicks=2,retry_after_seconds=3)
-        hwnd = self._flow(hwnd,'orb_panel',[accessories,self.screens['orb_panel']])
+        current_accessories = _current_accessories_screen()
+        current_accessories.update(click={'x':401,'y':453},max_clicks=2,retry_after_seconds=3)
+        current_panel = self.screens['orb_panel_current']
+        hwnd = self._flow(hwnd,'orb_panel',[accessories,current_accessories,self.screens['orb_panel'],current_panel])
         hwnd = self._open_modal(hwnd)
         state = self._state(hwnd)
         # Reconcile a previously confirmed game action before another claim;
@@ -188,7 +225,9 @@ class OrbRunner(MacroRunner):
         self._backend.click(hwnd,217,656,False)
         # Unknown ad/loading screens receive no input. Only an observed return
         # to the Orb panel can open the counter again, and Obtain is never retried.
-        hwnd = self._flow(hwnd,'orb_panel',[self.screens['orb_panel']],timeout=120)
+        hwnd = self._flow(hwnd,'orb_panel',[
+            self.screens['orb_panel'], self.screens['orb_panel_current']
+        ],timeout=120)
         hwnd = self._open_modal(hwnd)
         after = self._state(hwnd)
         if after.progress != state.progress+1:

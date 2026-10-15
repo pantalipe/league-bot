@@ -87,6 +87,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     calibrate = sub.add_parser("calibrate", help="calibra reconhecimento de telas sem clicar no jogo")
     calibration_sub = calibrate.add_subparsers(dest="calibration_command", required=True)
+    from .calibration_global_cli import add_parser as add_global_calibration_parser
+    add_global_calibration_parser(calibration_sub)
 
     def calibration_session(command):
         command.add_argument("--session", type=Path, help="diretorio da sessao (padrao: SLAYER_DATA_DIR/calibration/session)")
@@ -191,7 +193,8 @@ def cmd_record(settings: Settings, args: argparse.Namespace) -> int:
     if not settings.window_title:
         raise GameError("SLAYER_WINDOW_TITLE nao esta configurado. Rode `python -m league_bot windows` para ver os titulos.")
     stop_vk = vk_from_name(args.stop_key)
-    backend = _backend()
+    from .geometry import wrap_backend
+    backend = wrap_backend(_backend(), settings.data_dir)
     if backend.find_window(settings.window_title) is None:
         raise GameError(f"Janela '{settings.window_title}' nao encontrada: abra o jogo antes de gravar.")
 

@@ -122,6 +122,8 @@ class SlayerGame:
         runner = self._runner_factory(backend, title, self._settings.foreground_input, self._log)
         if isinstance(runner, MacroRunner):
             runner.diagnostics_dir = self._settings.data_dir / "diagnostics"
+            runner.screen_transform = getattr(self, "_calibrate_screen", None)
+            runner.step_transform = getattr(self, "_calibrate_step", None)
         with self._runner_guard:
             self._runner = runner
         try:
