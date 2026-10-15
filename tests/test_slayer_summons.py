@@ -32,6 +32,7 @@ if la.available():
     from league_bot.slayer.summons import (
         SummonRunner, observation_step, profiles, read_summon_menu, read_summons,
         record_summons, run_summons,
+        current_cooldown, _SummonCooldown,
     )
 
 
@@ -79,6 +80,26 @@ class FakeStatus:
 
 @unittest.skipUnless(la.available() and _HAS_IMAGES, "Slayer image dependencies unavailable")
 class SummonReaderTests(unittest.TestCase):
+    def test_current_cooldown_reads_two_used_with_different_timer_alignment(self):
+        for clock in ('0918','0837'):
+            frame = png_frame(FIXTURES/f'weapon-current-cooldown-{clock}.png')
+            self.assertEqual(read_summons(frame),{'summon_sword':2})
+            self.assertTrue(current_cooldown(frame))
+        self.assertFalse(current_cooldown(summon_frame('weapon',0)))
+        ready=png_frame(FIXTURES/'weapon-current-ready-2.png')
+        self.assertEqual(read_summons(ready),{'summon_sword':2})
+        self.assertFalse(current_cooldown(ready))
+
+    def test_current_popup_can_recover_without_touching_summon_controls(self):
+        from league_bot.slayer.home import home_step
+        popup=png_frame(FIXTURES/'weapon-current-cooldown-0918.png')
+        menu=current_summon_menu_frame()
+        main=png_frame(ROOT/'tests/fixtures/slayer/home/main.png')
+        backend=FrameBackend([popup]*2+[menu]*2+[main]*2)
+        clock=FakeTime()
+        MacroRunner(backend,'Slayer Legend',sleep=clock.sleep,clock=clock.clock).run([home_step()])
+        self.assertEqual(backend.clicks(),[(20,340,False),(404,784,False)])
+
     def test_current_equipment_menu_is_recognized_without_inventing_a_quota(self):
         frame = current_summon_menu_frame()
         self.assertEqual(read_summon_menu(frame), "summon_equipment")
@@ -175,9 +196,46 @@ class SummonObserverTests(unittest.TestCase):
         status = FakeStatus()
         unknown = png_frame(ROOT / "tests/fixtures/slayer/home/main.png")
         runner = self.make_runner([unknown], status=status)
-        runner.run([observation_step("summon_skill")])
+        with self.assertRaisesRegex(MacroError,'sem leitura visual segura'):
+            runner.run([observation_step("summon_skill"),{'action':'click','x':248,'y':454}])
         self.assertEqual(status.records, [])
         self.assertEqual(self.backend.clicks(), [])
+
+    def test_cooldown_during_a_pixel_wait_defers_before_any_claim(self):
+        popup=png_frame(FIXTURES/'weapon-current-cooldown-0918.png')
+        from league_bot.imaging import solid_frame
+        unknown=solid_frame(434,810,(0,0,0))
+        status=FakeStatus()
+        runner=self.make_runner([unknown,popup,popup],status=status)
+        with self.assertRaises(_SummonCooldown):
+            runner.run([{'action':'wait_for_pixel','x':395,'y':516,'color':[67,67,67],
+                         'timeout':30,'poll_seconds':.3}, {'action':'click','x':248,'y':454}])
+        self.assertEqual(status.records[0][0:3],('summon_sword',2,3))
+        self.assertEqual(self.backend.clicks(),[])
+        self.assertLess(self.time.clock(),2)
+
+    def test_run_summons_recovers_cooldown_and_returns_pending_without_completing_macro(self):
+        from league_bot.config import Settings
+        from league_bot.slayer.game import SlayerDailyGame
+        popup=png_frame(FIXTURES/'weapon-current-cooldown-0918.png')
+        menu=current_summon_menu_frame()
+        main=png_frame(ROOT/'tests/fixtures/slayer/home/main.png')
+        backend=FrameBackend([popup]*4+[menu]*2+[main]*2)
+        clock,status=FakeTime(),FakeStatus()
+        with tempfile.TemporaryDirectory() as tmp:
+            game=SlayerDailyGame(Settings(window_title='Slayer Legend',data_dir=Path(tmp)),backend,
+                status_store=status,runner_factory=lambda b,t,f,l:MacroRunner(b,t,f,l,
+                    sleep=clock.sleep,clock=clock.clock))
+            original=game._runner_factory
+            game.load_macro_steps=lambda name:[dict(action='wait_for_pixel',x=395,y=516,
+                color=[67,67,67],timeout=30,poll_seconds=.3)]
+            result=run_summons(game)
+            self.assertTrue(result.skipped)
+            self.assertIn('intervalo',str(result))
+            self.assertIn('2/3',str(result))
+            self.assertIs(game._runner_factory,original)
+        self.assertEqual(backend.clicks(),[(20,340,False),(404,784,False)])
+        self.assertEqual([r[:3] for r in status.records],[('summon_sword',2,3)])
 
     def test_equipment_menu_stops_before_recorded_paid_summon_click(self):
         runner = self.make_runner([current_summon_menu_frame()])
@@ -185,6 +243,19 @@ class SummonObserverTests(unittest.TestCase):
         with self.assertRaisesRegex(MacroError, "clique registrado nao autorizado"):
             runner.run([observation_step("summon_sword"), paid_summon])
         self.assertEqual(self.backend.clicks(), [])
+
+    def test_unknown_current_popup_quota_stops_before_recorded_claim(self):
+        frame=png_frame(FIXTURES/'weapon-current-ready-2.png')
+        pixels=bytearray(frame.bgr)
+        offset=(frame.height-1-410)*frame.row_size+171*3
+        pixels[offset:offset+3]=bytes((255,255,255))
+        unknown=Frame(frame.width,frame.height,bytes(pixels))
+        self.assertEqual(read_summons(unknown),{})
+        self.assertFalse(current_cooldown(unknown))
+        runner=self.make_runner([unknown])
+        with self.assertRaisesRegex(MacroError,'sem leitura visual segura'):
+            runner.run([observation_step('summon_sword'),dict(action='click',x=248,y=454)])
+        self.assertEqual(self.backend.clicks(),[])
 
     def test_initial_menu_observation_allows_the_free_video_branch(self):
         runner = self.make_runner([current_summon_menu_frame()])

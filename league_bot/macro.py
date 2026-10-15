@@ -253,6 +253,7 @@ class MacroRunner:
                 y_px = resolve_coord(step["y"], height)
                 frame = self._backend.capture(hwnd)
                 self._last_frame = frame
+                self._observe_pixel_frame(frame)
                 pixel = None
                 if frame is not None:
                     pixel = frame.average(x_px, y_px, radius) if radius else frame.pixel(x_px, y_px)
@@ -263,6 +264,9 @@ class MacroRunner:
             if self._clock() >= deadline:
                 return False, hwnd, x_px, y_px, seen
             self._pause(poll)
+
+    def _observe_pixel_frame(self, frame):
+        """Specialized runners can recognize game states while a color wait polls."""
 
     # -- actions ---------------------------------------------------------------
 

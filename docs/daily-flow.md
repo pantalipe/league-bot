@@ -10,6 +10,14 @@ O pacote `league_bot.slayer` oferece uma seleção padrão de 20 macros para Sla
 4. O pet tem uma limpeza gratuita e quatro pagas: 100, 200, 300 e 400 diamantes. Esse gasto diário está autorizado sem leitura do saldo ou filtro de orçamento. Na mesma visita ao painel, executa sequências de limpeza/confirmação e confere o contador ao final de cada sequência, repetindo até confirmar 5/5. Só grava o progresso observado, nunca o número de cliques. Cancelamento, mudança de ciclo, tela desconhecida ou timeout operacional interrompem a tentativa; uma janela sem resposta não prende a daily indefinidamente.
 5. O progresso de tarefas é salvo em disco no diretório `SLAYER_DATA_DIR` da instalação e é carregado novamente nas próximas consultas/execuções. O ciclo diário troca às 02:00 no fuso UTC−03:00. Essa troca é lazy: ocorre quando a aplicação lê ou atualiza o estado, sem timer ou ação de jogo em segundo plano.
 
+Em WPACS, a janela atual de invocação de espada também é reconhecida durante
+as esperas por pixels. Dois quadros com o cronômetro ativo interrompem a gravação,
+registram apenas a quota legível (por exemplo, 2/3) e retornam ao menu sem novo
+clique de anúncio. A tarefa fica pendente para outra daily, sem marcar a macro
+como concluída. Uma observação sem quota conhecida não autoriza o próximo clique
+gravado; somente a entrada inicial pelo menu Equipment reconhecido tem a exceção
+de navegação. O recovery fecha a janela pelo espaço externo antes de sair de Shop.
+
 Na loja Goods, cada oferta gratuita tem seu próprio contador de até dez anúncios.
 O fluxo lê os dois contadores, executa uma sequência limitada ao número de
 anúncios gratuitos restantes e confere os dois contadores ao final. Só grava as

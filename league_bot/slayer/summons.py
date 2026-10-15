@@ -68,7 +68,29 @@ def read_summons(frame, data=None):
     # (including uncalibrated rasters) must not become the closest known count.
     if len(readings)!=1:
         return {}
-    return {screen['name']: next(iter(readings))[0]}
+    return {screen.get('task',screen['name']): next(iter(readings))[0]}
+
+
+def current_cooldown(frame, data=None):
+    """Recognize the current weapon popup and its fixed clock colon, never a cost."""
+    data = data or profiles()
+    if frame is None or (frame.width,frame.height) != tuple(data['frame_size']):
+        return False
+    popup = [s for s in data['screens'] if s['name']=='summon_sword_current']
+    if matching_screens(frame,popup) != ['summon_sword_current']:
+        return False
+    timer = data.get('current_cooldown_colon')
+    if not timer:
+        return False
+    left,top,right,bottom = timer['box']
+    # The timer is centered again as digit widths change; the separator keeps
+    # its two-dot shape while shifting a few columns horizontally.
+    return any(''.join('1' if _white(frame.pixel(x,y)) else '0' for y in range(top,bottom))
+               == timer['column_mask'] for x in range(left,right))
+
+
+class _SummonCooldown(Exception):
+    pass
 
 
 def record_summons(store, readings, cycle):
@@ -103,6 +125,26 @@ class SummonRunner(MacroRunner):
     def __init__(self,*args,store=None,cycle=None,**kwargs):
         super().__init__(*args,**kwargs)
         self.store,self.cycle=store,cycle
+        self._cooldown_stable=0
+
+    def _check_cancel(self):
+        super()._check_cancel()
+        if self.store and self.store.cycle_id()!=self.cycle:
+            raise MacroCancelled('O ciclo diario mudou durante a conferencia das invocacoes.')
+
+    def _cooldown(self, frame):
+        if current_cooldown(frame):
+            readings = read_summons(frame)
+            record_summons(self.store,readings,self.cycle)
+            quota = readings.get('summon_sword')
+            detail = f' ({quota}/3)' if quota is not None else ''
+            raise _SummonCooldown(f'Invocacoes: espada em intervalo{detail}; coleta pendente para a proxima daily.')
+
+    def _observe_pixel_frame(self,frame):
+        self._check_cancel()
+        self._cooldown_stable = self._cooldown_stable+1 if current_cooldown(frame) else 0
+        if self._cooldown_stable >= 2:
+            self._cooldown(frame)
 
     def _do_screen_flow(self,step,hwnd):
         task=step.get('summon_observe')
@@ -111,16 +153,21 @@ class SummonRunner(MacroRunner):
         # Observation markers never execute screen clicks, even on timeout.
         hwnd=self._window(hwnd,'observe summons')
         deadline=self._clock()+step['timeout']
-        previous,stable=None,0
+        previous,stable,menu_stable=None,0,0
         while self._clock()<deadline:
             self._check_cancel()
             if self.store and self.store.cycle_id()!=self.cycle:
                 raise MacroCancelled('O ciclo diario mudou durante a conferencia das invocacoes.')
             frame=self._backend.capture(hwnd)
             self._last_frame=frame
+            self._observe_pixel_frame(frame)
             readings=read_summons(frame) if self._backend.client_size(hwnd)==(434,810) else {}
             current=readings.get(task)
-            if (read_summon_menu(frame) == 'summon_equipment'
+            menu = read_summon_menu(frame)
+            menu_stable = menu_stable+1 if menu=='summon_equipment' else 0
+            if step.get('summon_allow_menu') and menu_stable >= 2:
+                return hwnd
+            if (menu == 'summon_equipment'
                     and current is None and not step.get('summon_allow_menu')):
                 # The recorded macro's next summon buttons spend diamonds. This
                 # combined menu has no safe quota for the pending item action.
@@ -132,8 +179,7 @@ class SummonRunner(MacroRunner):
                 self._log(f'Invocacoes: {task} {current}/3 confirmado visualmente.')
                 return hwnd
             self._pause(min(.3,max(0,deadline-self._clock())))
-        self._log(f'Invocacoes: {task} sem leitura visual segura; progresso preservado.')
-        return hwnd
+        raise MacroError(f'Invocacoes: {task} sem leitura visual segura; nenhum clique registrado autorizado.')
 
 
 def run_summons(game):
@@ -149,7 +195,14 @@ def run_summons(game):
                 return SummonRunner(backend,title,foreground,log,sleep=original._sleep,
                                     clock=original._clock,store=store,cycle=cycle)
             game._runner_factory=factory
-            game._run_steps(game.load_macro_steps('free_wpacs'),'free_wpacs',game._title())
+            try:
+                game._run_steps(game.load_macro_steps('free_wpacs'),'free_wpacs',game._title())
+            except _SummonCooldown as exc:
+                from .home import home_step
+                from .daily import DeferredOutcome
+                game._runner_factory=previous
+                game._run_steps([home_step(),*game.final_steps()], 'summons_cooldown_return',game._title())
+                return DeferredOutcome(str(exc))
         except DailyStatusError as exc:
             raise GameError('Nao foi possivel salvar a conferencia das invocacoes.') from exc
         finally:
