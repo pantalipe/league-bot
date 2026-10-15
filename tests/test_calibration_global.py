@@ -1,3 +1,4 @@
+import copy
 import json
 import tempfile
 import unittest
@@ -183,6 +184,26 @@ class GlobalCalibrationTests(unittest.TestCase):
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
             propose(self.session, self.inv)
             self.assertEqual(propose_screen.call_count, 2)
+
+    def test_new_inventory_entry_does_not_invalidate_other_cached_profiles(self):
+        self._label_all("screen:fixture")
+        propose(self.session, self.inv)
+        expanded = copy.deepcopy(self.inv)
+        click = {"action": "click", "x": 1, "y": 2}
+        expanded["entries"]["click:new"] = {
+            "id": "click:new", "kind": "click", "source": "macros/new.json", "pointer": "/0",
+            "base": click, "signature": "new-click", "reference_size": [434, 810], "name": "new click"}
+        old_manifest = json.loads((self.session / "session.json").read_text(encoding="utf-8"))
+        create_session(self.session, expanded)
+        migrated = json.loads((self.session / "session.json").read_text(encoding="utf-8"))
+        migrated["entries"]["screen:fixture"]["samples"] = old_manifest["entries"]["screen:fixture"]["samples"]
+        (self.session / "session.json").write_text(json.dumps(migrated), encoding="utf-8")
+
+        from league_bot.slayer import calibration as v1
+        with patch("league_bot.slayer.calibration_global.v1.propose", wraps=v1.propose) as propose_screen:
+            propose(self.session, expanded)
+            self.assertEqual(propose_screen.call_count, 0)
+        self.assertTrue(validate(self.session, expanded)["ok"])
 
     def test_transform_rejects_malformed_active_data_and_changed_pixel_coordinates(self):
         data_dir = self.root / "bad_data"

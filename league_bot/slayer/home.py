@@ -50,5 +50,9 @@ def home_step():
         screen["name"] = "home_close_" + screen["name"]
         screen["click"] = {"x":217,"y":712}
         screens.append(screen)
+    from .guild_navigation import load_profiles as guild_profiles
+    guild_shop = copy.deepcopy(guild_profiles()["guild_shop"])
+    guild_shop.update(name="home_return_guild_shop",click={"x":50,"y":777})
+    screens.append(guild_shop)
     return dict(action="screen_flow", timeout=40, poll_seconds=.3,
                 stable_frames=2, frame_size=[434,810], terminal="main", screens=screens)

@@ -266,11 +266,13 @@ def propose(session: Path, inv: dict | None = None) -> Path:
         previous_entries = previous.get("entries", {})
         prior_profiles = previous.get("profiles", {})
         if (previous.get("version") == VERSION and previous.get("inventory_version") == catalog["version"]
-                and previous_entries == current_entries and isinstance(prior_profiles, dict)):
+                and isinstance(previous_entries, dict) and isinstance(prior_profiles, dict)):
             for ident, profile in prior_profiles.items():
                 if ident not in catalog["entries"] or not isinstance(profile, dict):
                     continue
                 entry = catalog["entries"][ident]
+                if previous_entries.get(ident) != current_entries[ident]:
+                    continue
                 expected_evidence = [{key: record[key] for key in ("label", "image", "sha256")}
                                       for record in manifest["entries"][ident]["samples"]]
                 evidence_files_intact = all(
