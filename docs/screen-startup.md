@@ -50,6 +50,15 @@ Erros preservam a ultima captura disponivel em `SLAYER_DATA_DIR/diagnostics`.
 O caminho aparece na mensagem de erro. Captura ausente nao cria imagem; falha ao
 gravar a evidencia nao oculta o erro original. O cancelamento interrompe o fluxo.
 
+O painel `Attendance check` usa pontos estaveis do titulo, do painel e do botao
+Claim, distinguindo o botao disponivel do desabilitado. Em 2026-10-15, tres
+pontos instaveis do titulo foram removidos dos perfis de presenca e navegacao:
+na captura real da falha, as letras mudaram de renderizacao com a mesma
+geometria 434 x 810. O teste reproduz essa captura com os dados pessoais
+removidos, verifica o reconhecimento na abertura e na daily e o fechamento
+na recuperacao da tela principal. Esses perfis JSON sao relidos a cada fluxo;
+alteracoes neles ficam disponiveis na proxima execucao, sem reiniciar o bot.
+
 ## Validacao realizada em 2026-10-07
 
 - Primeira abertura: capturas reais de entrada e save; ambos os cliques enviados

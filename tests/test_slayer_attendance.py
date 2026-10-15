@@ -172,6 +172,37 @@ class AttendanceScreenFlowTests(unittest.TestCase):
         self.runner.run([attendance_flow()])
         self.assertEqual(self.backend.click_log, [(217, 712, False)])
 
+    def test_current_title_rendering_recognizes_and_claims_once(self):
+        ready = png_frame(FIXTURES / "attendance-ready-current.png")
+        self.assertEqual(matching_screens(ready, la.load_attendance_screens()),
+                         ["attendance_claim_ready"])
+        settings = la.load_settings(environ={"SLAYER_WINDOW_TITLE": "Slayer Legend"}, env_file=None)
+        game = la.HomeSlayerGame(settings, backend=object())
+        startup = next(step for step in game.load_macro_steps("start_game_recognized")
+                       if step["action"] == "screen_flow")
+        self.assertEqual(matching_screens(ready, startup["screens"]),
+                         ["attendance_claim_ready"])
+        self.assertEqual(matching_screens(ready, [la.load_daily_navigation()["attendance_open"]]),
+                         ["attendance_open"])
+        self.backend.frames = [ready, ready] + fixture_frames("claimed", "claimed") + [
+            solid_frame(WIDTH, HEIGHT, (1, 2, 3)), solid_frame(WIDTH, HEIGHT, (1, 2, 3)),
+        ]
+        self.runner.run([attendance_flow()])
+        self.assertEqual(self.backend.click_log, [(217, 610, False), (217, 712, False)])
+
+    def test_current_attendance_is_closed_by_home_recovery(self):
+        from league_bot.slayer.home import home_step
+        ready = png_frame(FIXTURES / "attendance-ready-current.png")
+        step = home_step()
+        self.assertEqual(matching_screens(ready, step["screens"]),
+                         ["home_close_attendance_claim_ready"])
+        # Use a deterministic terminal frame while retaining all recovery detectors.
+        main = next(screen for screen in step["screens"] if screen["name"] == "main")
+        main["anchors"] = attendance_flow()["screens"][-1]["anchors"]
+        self.backend.frames = [ready, ready] + [solid_frame(WIDTH, HEIGHT, (1, 2, 3))] * 2
+        self.runner.run([step])
+        self.assertEqual(self.backend.click_log, [(217, 712, False)])
+
     def test_persistent_claim_ready_is_clicked_once_then_times_out(self):
         ready = png_frame(FIXTURES / "attendance-ready.png")
         self.backend.frames = [ready]
