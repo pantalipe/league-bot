@@ -52,7 +52,12 @@ class LiveDailyFixTests(unittest.TestCase):
             prepared=prepare_dungeon_macro(name,original)
             self.assertEqual(prepared[1]['terminal'],'dungeon_ready')
             prefix = 7 if name == 'floresta_circulacao' else 4
-            self.assertEqual(prepared[2:],original[prefix:])
+            if name == 'dragao_dormente':
+                self.assertEqual([s for s in prepared[2:] if s['action'] in {'click','wait'}],
+                                 [s for s in original[prefix:] if s['action'] in {'click','wait'}])
+                self.assertIn('dragon_free_multiplier',[s.get('terminal') for s in prepared])
+            else:
+                self.assertEqual(prepared[2:],original[prefix:])
             validate_steps(prepared)
             custom=[dict(s) for s in original]
             custom[2]['x']='50%'
@@ -81,13 +86,17 @@ class LiveDailyFixTests(unittest.TestCase):
         root=Path(__file__).resolve().parents[1]
         original=load_macro(root/'league_bot/slayer/macros/free_wpacs.json')
         prepared=prepare_summons(original)
-        markers=[s for s in prepared if s.get('summon_observe')]
+        markers=[s for s in prepared if s.get('summon_observe') and not s.get('summon_open_popup')]
         self.assertEqual([s['summon_observe'] for s in markers],
                          ['summon_skill','summon_sword','summon_sword',
                           'summon_accessory','summon_accessory','summon_skill','summon_skill'])
         for marker in markers:
             self.assertFalse(any('click' in screen for screen in marker['screens']))
-        self.assertEqual([s for s in prepared[3:] if not s.get('summon_observe')],original[4:])
+        self.assertEqual(len([s for s in prepared if s.get('summon_open_popup')]),1)
+        # The obsolete double navigation click is replaced with one recognized
+        # popup entry. Original free claim coordinates remain in the plan.
+        self.assertIn({'action':'click','x':'57.26%','y':'56.11%',
+                       'summon_task':'summon_sword'}, prepared)
         custom=[dict(s) for s in original]
         custom[8]['x']='40%'
         self.assertEqual(prepare_summons(custom),custom)

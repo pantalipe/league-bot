@@ -1,6 +1,7 @@
 """Fixture-backed safety tests for Black Orb navigation and collection."""
 from __future__ import annotations
 
+import copy
 import sys
 import tempfile
 import unittest
@@ -20,7 +21,7 @@ if la.available():
     from league_bot.macro import MacroCancelled, MacroError, MacroRunner
     from league_bot.screens import matching_screens
     from league_bot.slayer.home import home_step
-    from league_bot.slayer.orb import OrbRunner, OrbState, _current_accessories_screen, classify, profiles
+    from league_bot.slayer.orb import OrbRunner, OrbState, _current_accessories_screen, classify, profiles, read_counter
 
 
 FIXTURES = ROOT / "tests" / "fixtures" / "slayer" / "orb"
@@ -62,6 +63,34 @@ class OrbClassificationTests(unittest.TestCase):
         for name, state in expected.items():
             with self.subTest(name=name):
                 self.assertEqual(classify(orb_frame(name), self.data), state)
+
+    def test_current_geometry_ad_ready_modal_classifies_with_exact_progress(self):
+        current = png_frame(ROOT / "tests" / "fixtures" / "slayer" / "orb" / "ad_ready_current.png")
+        self.assertEqual(classify(current, self.data), OrbState("ad_ready", 1))
+        self.assertEqual(classify(orb_frame("ad_ready"), self.data), OrbState("ad_ready", 1))
+
+    def test_current_paid_feather_offer_is_exhausted_without_another_claim(self):
+        self.assertEqual(classify(orb_frame("exhausted_current"), self.data),
+                         OrbState("exhausted", 3))
+        self.assertEqual(classify(orb_frame("exhausted_reset_6h"), self.data),
+                         OrbState("exhausted", 3))
+
+    def test_current_cooldown_counter_reads_one_of_two_after_confirmed_claim(self):
+        current = png_frame(ROOT / "tests" / "fixtures" / "slayer" / "orb" / "ad_cooldown_current.png")
+        self.assertEqual(read_counter(current, self.data), (1, 2))
+        self.assertEqual(classify(current, self.data), OrbState("cooldown", 2))
+
+    def test_duplicate_ad_variants_share_one_semantic_kind(self):
+        data = copy.deepcopy(self.data)
+        data["buttons"]["ad_current"] = copy.deepcopy(data["buttons"]["ad"])
+        self.assertEqual(classify(orb_frame("ad_ready"), data), OrbState("ad_ready", 1))
+
+    def test_conflicting_ad_and_cooldown_variants_remain_unknown(self):
+        current = png_frame(ROOT / "tests" / "fixtures" / "slayer" / "orb" / "ad_ready_current.png")
+        data = copy.deepcopy(self.data)
+        data["buttons"]["cooldown"] = copy.deepcopy(data["buttons"]["ad_current"])
+        with self.assertRaisesRegex(MacroError, "Botao ou custo"):
+            classify(current, data)
 
     def test_panel_and_claimed_fixtures_are_recognized_as_distinct_screens(self):
         screens = self.data["screens"]

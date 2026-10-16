@@ -76,8 +76,9 @@ def current_cooldown(frame, data=None):
     data = data or profiles()
     if frame is None or (frame.width,frame.height) != tuple(data['frame_size']):
         return False
-    popup = [s for s in data['screens'] if s['name']=='summon_sword_current']
-    if matching_screens(frame,popup) != ['summon_sword_current']:
+    popup = [s for s in data['screens'] if s['name'] in
+             {'summon_sword_current', 'summon_accessory_current'}]
+    if len(matching_screens(frame,popup)) != 1:
         return False
     timer = data.get('current_cooldown_colon')
     if not timer:
@@ -111,13 +112,21 @@ def record_summons(store, readings, cycle):
         store.mark_progress(task,progress,3,source='visual',expected_cycle=cycle)
 
 
-def observation_step(task, *, allow_menu=False):
+def observation_step(task, *, allow_menu=False, exhausted_branch=False):
     screen=next(s for s in profiles()['screens'] if s['name']==task)
     step={'action':'screen_flow','summon_observe':task,'screens':[screen],
             'terminal':task,'timeout':3,'poll_seconds':.3,'stable_frames':2,
             'frame_size':[434,810]}
     if allow_menu:
         step['summon_allow_menu']=True
+    if exhausted_branch:
+        step['summon_exhausted_branch']=True
+    return step
+
+
+def popup_entry_step(task):
+    step = observation_step(task)
+    step['summon_open_popup'] = task
     return step
 
 
@@ -126,6 +135,7 @@ class SummonRunner(MacroRunner):
         super().__init__(*args,**kwargs)
         self.store,self.cycle=store,cycle
         self._cooldown_stable=0
+        self._exhausted_task=None
 
     def _check_cancel(self):
         super()._check_cancel()
@@ -136,9 +146,11 @@ class SummonRunner(MacroRunner):
         if current_cooldown(frame):
             readings = read_summons(frame)
             record_summons(self.store,readings,self.cycle)
-            quota = readings.get('summon_sword')
+            task = next(iter(readings), 'summon_sword')
+            quota = readings.get(task)
             detail = f' ({quota}/3)' if quota is not None else ''
-            raise _SummonCooldown(f'Invocacoes: espada em intervalo{detail}; coleta pendente para a proxima daily.')
+            label = 'acessorios' if task == 'summon_accessory' else 'espada'
+            raise _SummonCooldown(f'Invocacoes: {label} em intervalo{detail}; coleta pendente para a proxima daily.')
 
     def _observe_pixel_frame(self,frame):
         self._check_cancel()
@@ -147,9 +159,25 @@ class SummonRunner(MacroRunner):
             self._cooldown(frame)
 
     def _do_screen_flow(self,step,hwnd):
+        if step.get('summon_open_popup') == 'summon_accessory':
+            hwnd = self._window(hwnd, 'open accessory quota')
+            deadline, stable = self._clock() + 8, 0
+            while self._clock() < deadline:
+                self._check_cancel()
+                frame = self._backend.capture(hwnd)
+                self._last_frame = frame
+                stable = stable + 1 if read_summon_menu(frame) == 'summon_equipment' else 0
+                if stable >= 2:
+                    self._backend.click(hwnd, 385, 512, False)
+                    return hwnd
+                self._pause(.3)
+            raise MacroError('Menu de invocacoes desconhecido; acessorios nao abertos.')
         task=step.get('summon_observe')
         if not task:
             return super()._do_screen_flow(step,hwnd)
+        exhausted_branch=step.get('summon_exhausted_branch',False)
+        if self._exhausted_task and self._exhausted_task != task:
+            self._exhausted_task=None
         # Observation markers never execute screen clicks, even on timeout.
         hwnd=self._window(hwnd,'observe summons')
         deadline=self._clock()+step['timeout']
@@ -161,14 +189,21 @@ class SummonRunner(MacroRunner):
             frame=self._backend.capture(hwnd)
             self._last_frame=frame
             self._observe_pixel_frame(frame)
+            menu = read_summon_menu(frame)
+            if exhausted_branch and self._exhausted_task==task:
+                menu_stable=menu_stable+1 if menu=='summon_equipment' else 0
+                if menu_stable>=2:
+                    return hwnd
+                self._pause(min(.3,max(0,deadline-self._clock())))
+                continue
             readings=read_summons(frame) if self._backend.client_size(hwnd)==(434,810) else {}
             current=readings.get(task)
-            menu = read_summon_menu(frame)
             menu_stable = menu_stable+1 if menu=='summon_equipment' else 0
             if step.get('summon_allow_menu') and menu_stable >= 2:
                 return hwnd
             if (menu == 'summon_equipment'
-                    and current is None and not step.get('summon_allow_menu')):
+                    and current is None and not step.get('summon_allow_menu')
+                    and not step.get('summon_allow_transition')):
                 # The recorded macro's next summon buttons spend diamonds. This
                 # combined menu has no safe quota for the pending item action.
                 raise MacroError('Invocacoes: menu de equipamento reconhecido; clique registrado nao autorizado.')
@@ -177,9 +212,55 @@ class SummonRunner(MacroRunner):
             if stable>=2:
                 record_summons(self.store,{task:current},self.cycle)
                 self._log(f'Invocacoes: {task} {current}/3 confirmado visualmente.')
+                if exhausted_branch and current==3:
+                    # This exact quota authorizes only the tested outside-popup
+                    # dismissal. Require the equipment menu to return stably.
+                    self._check_cancel()
+                    self._backend.click(hwnd,20,340,False)
+                    menu_stable=0
+                    while self._clock()<deadline:
+                        self._check_cancel()
+                        if self.store and self.store.cycle_id()!=self.cycle:
+                            raise MacroCancelled('O ciclo diario mudou durante a conferencia das invocacoes.')
+                        frame=self._backend.capture(hwnd)
+                        self._last_frame=frame
+                        menu_stable=menu_stable+1 if read_summon_menu(frame)=='summon_equipment' else 0
+                        if menu_stable>=2:
+                            self._exhausted_task=task
+                            self._log(f'Invocacoes: {task} esgotada; popup fechado sem repetir clique.')
+                            return hwnd
+                        self._pause(min(.3,max(0,deadline-self._clock())))
+                    raise MacroError(f'Invocacoes: {task} 3/3, mas o menu nao retornou apos fechar popup.')
                 return hwnd
             self._pause(min(.3,max(0,deadline-self._clock())))
         raise MacroError(f'Invocacoes: {task} sem leitura visual segura; nenhum clique registrado autorizado.')
+
+    def _skip_exhausted_step(self,step):
+        return bool(self._exhausted_task and step.get('summon_task')==self._exhausted_task)
+
+    def _do_wait(self,step,hwnd):
+        if self._skip_exhausted_step(step):
+            self._log(f"Invocacoes: ignorando etapa restante de {self._exhausted_task} esgotada.")
+            return hwnd
+        return super()._do_wait(step,hwnd)
+
+    def _do_wait_for_pixel(self,step,hwnd):
+        if self._skip_exhausted_step(step):
+            self._log(f"Invocacoes: ignorando etapa restante de {self._exhausted_task} esgotada.")
+            return hwnd
+        return super()._do_wait_for_pixel(step,hwnd)
+
+    def _do_click(self,step,hwnd):
+        if self._skip_exhausted_step(step):
+            self._log(f"Invocacoes: ignorando clique restante de {self._exhausted_task} esgotada.")
+            return hwnd
+        return super()._do_click(step,hwnd)
+
+    def _do_click_if_pixel(self,step,hwnd):
+        if self._skip_exhausted_step(step):
+            self._log(f"Invocacoes: ignorando clique restante de {self._exhausted_task} esgotada.")
+            return hwnd
+        return super()._do_click_if_pixel(step,hwnd)
 
 
 def run_summons(game):

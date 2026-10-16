@@ -117,7 +117,8 @@ class EquipmentRecoveryTests(unittest.TestCase):
         game = SlayerDailyGame(Settings(), object())
         integrated = game.load_macro_steps('colheita_arma_alma')
         self.assertIn('equipment_open', [s.get('terminal') for s in integrated])
-        self.assertIn('equipment_weapon', [s.get('terminal') for s in integrated])
+        self.assertIn({'action':'click','x':65,'y':421}, integrated)
+        self.assertNotIn('wait_for_pixel', [s['action'] for s in integrated])
         validate_steps(integrated)
         custom = copy.deepcopy(original)
         custom[2]['x'] = '55%'

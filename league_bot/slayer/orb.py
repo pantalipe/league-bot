@@ -93,7 +93,9 @@ def classify(frame, data=None):
         raise MacroError('Painel Black Orb desconhecido; nenhuma coleta autorizada.')
     # The observed state after both ad claims replaces Daily limit with a
     # feather icon and price. Recognize it only to stop; never click its Obtain.
-    if matching_screens(frame,[{'name':'paid','anchors':data['buttons']['paid']}]):
+    paid = [{'name': name, 'anchors': anchors} for name, anchors in data['buttons'].items()
+            if name in {'paid', 'paid_current'}]
+    if matching_screens(frame, paid):
         return OrbState('exhausted',3)
     used,total = read_counter(frame,data)
     if total not in (1,2) or not 0 <= used <= total:
@@ -101,13 +103,22 @@ def classify(frame, data=None):
     progress = used if total == 1 else 1 + used
     if used == total:
         return OrbState('exhausted' if total == 2 else 'free_exhausted',progress)
-    buttons = [{'name':name,'anchors':anchors} for name,anchors in data['buttons'].items() if name != 'paid']
+    buttons = [{'name':name,'anchors':anchors} for name,anchors in data['buttons'].items()
+               if name not in {'paid', 'paid_current'}]
     matches = matching_screens(frame,buttons)
-    if matches == ['free'] and total == 1:
+    # Current game captures use a brighter red on the ad button than the
+    # legacy profile. Keep each raster strict, but normalize the current
+    # profile alias before deciding which action the observed state permits.
+    kinds = {'ad_current': 'ad'}
+    observed = {kinds.get(name, name) for name in matches}
+    if len(observed) > 1:
+        raise MacroError('Botao ou custo do Black Orb desconhecido; nenhuma coleta autorizada.')
+    kind = next(iter(observed), None)
+    if kind == 'free' and total == 1:
         return OrbState('free_ready',progress)
-    if matches == ['ad'] and total == 2:
+    if kind == 'ad' and total == 2:
         return OrbState('ad_ready',progress)
-    if matches == ['cooldown'] and total == 2:
+    if kind == 'cooldown' and total == 2:
         return OrbState('cooldown',progress)
     raise MacroError('Botao ou custo do Black Orb desconhecido; nenhuma coleta autorizada.')
 

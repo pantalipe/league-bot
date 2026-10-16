@@ -80,6 +80,14 @@ class MailboxTests(unittest.TestCase):
         self.assertEqual(matching_screens(self.populated, [screens[1]]), ["mailbox_populated"])
         self.assertEqual(matching_screens(self.populated, [screens[2]]), [])
 
+    def test_current_one_gift_layout_is_observed_without_claiming(self):
+        frame = png_frame(FIXTURES / 'populated_current.png')
+        runner = self.runner([frame,frame])
+        self.assertEqual(runner._observe_state(7), (7,'mailbox_populated'))
+        self.assertEqual(runner._backend.click_log, [])
+        from league_bot.slayer.mailbox import recovery_screens
+        self.assertEqual(matching_screens(frame,recovery_screens()),['home_close_mailbox_current'])
+
     def test_empty_waits_stably_closes_recognized_panel_and_never_claims(self):
         runner = self.runner([self.empty, self.empty])
         flows = []

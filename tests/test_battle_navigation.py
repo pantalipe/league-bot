@@ -9,12 +9,31 @@ from tests.test_slayer_attendance import png_frame
 ROOT=Path(__file__).resolve().parents[1]
 
 class BattleNavigationTests(unittest.TestCase):
+    def test_updated_forest_uses_common_title_and_has_one_safe_exit(self):
+        frame=png_frame(ROOT/'tests/fixtures/slayer/battle_navigation/forest_updated.png')
+        self.assertEqual(matching_screens(frame,[profiles()['forest']]),['forest_open'])
+        self.assertEqual(matching_screens(frame,home_step()['screens']),['home_close_forest_current'])
+        original=load_macro(ROOT/'league_bot/slayer/macros/floresta_circulacao.json')
+        selection=next(s for s in prepare_battle_entry('floresta_circulacao',original)
+                       if s.get('terminal')=='forest_difficulty_120')
+        self.assertEqual(selection['screens'][0]['click'],{'x':222,'y':725})
+        self.assertNotIn('click',selection['screens'][1])
     def test_entries_preserve_claims_and_unknown_custom_macros(self):
         for name,prefix in [('floresta_circulacao',13),('treinador',7)]:
             original=load_macro(ROOT/f'league_bot/slayer/macros/{name}.json')
             prepared=prepare_battle_entry(name,original)
             validate_steps(prepared)
-            self.assertEqual(prepared[-len(original[prefix:]):],original[prefix:])
+            if name == 'floresta_circulacao':
+                actions=lambda seq:[s for s in seq if s['action'] in {'click','wait'}]
+                self.assertEqual(actions(prepared),actions(original[prefix:]))
+                gate=next(i for i,s in enumerate(prepared) if s.get('terminal')=='forest_free_multiplier')
+                self.assertEqual(prepared[gate+1],original[17])
+            else:
+                self.assertEqual(prepared[-len(original[prefix:]):],original[prefix:])
+            custom_tail=[dict(s) for s in original]
+            custom_tail[-1]['x']='50%'
+            custom_prepared=prepare_battle_entry(name,custom_tail)
+            self.assertEqual(custom_prepared[-len(custom_tail[prefix:]):],custom_tail[prefix:])
             changed=[dict(s) for s in original]
             changed[2]['x']='50%'
             self.assertEqual(prepare_battle_entry(name,changed),changed)

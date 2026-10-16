@@ -7,8 +7,16 @@ from league_bot.macro import load_macro
 def profiles():
     return json.loads((Path(__file__).parent/'assets/battle-navigation.json').read_text())
 
+def forest_checkpoint(name):
+    return json.loads((Path(__file__).parent/f'assets/{name}.json').read_text(encoding='utf-8'))
+
 def recovery_screens():
     screens=[]
+    screens.append(json.loads((Path(__file__).parent/'assets/forest-current-recovery.json').read_text(encoding='utf-8')))
+    for asset,x,y in [('forest-popup-current',50,777),('forest-multiplier',218,300)]:
+        screen=forest_checkpoint(asset)
+        screen.update(name='home_close_'+screen['name'],click={'x':x,'y':y})
+        screens.append(screen)
     for key in ('character','character_enhance','character_promotion'):
         character=copy.deepcopy(profiles()[key])
         character.update(name='home_close_'+key,click={'x':33,'y':784},
@@ -43,10 +51,27 @@ def prepare_battle_entry(name,steps):
     flow=dict(action='screen_flow',terminal=terminal['name'],screens=[entry,terminal],
               timeout=35,poll_seconds=.3,stable_frames=2,frame_size=[434,810])
     if name=='floresta_circulacao':
-        rows=[profiles()['forest_120_recorded'],profiles()['forest_120_current']]
+        selection=copy.deepcopy(terminal)
+        selection.update(click={'x':222,'y':725},max_clicks=1)
         popup=profiles()['forest_popup']
-        select=dict(flow,terminal=popup['name'],screens=[*rows,popup])
-        return [*first,flow,select,*copy.deepcopy(steps[prefix:])]
+        # Selecting the visible final row is navigation only. Verify the
+        # difficulty-120 popup before any entry action, rather than matching
+        # a raster of the row number before the selection click.
+        select=dict(flow,terminal=popup['name'],screens=[selection,popup])
+        select['screens'].append(forest_checkpoint('forest-popup-current'))
+        select['terminal_aliases']=['forest_difficulty_120_current']
+        tail=copy.deepcopy(steps[prefix:])
+        if steps == known:
+            gate=forest_checkpoint('forest-multiplier')
+            checkpoint=dict(action='screen_flow',terminal=gate['name'],screens=[gate],
+                            timeout=8,poll_seconds=.3,stable_frames=2,frame_size=[434,810])
+            tail=[]
+            for index,action in enumerate(steps[prefix:],prefix):
+                if index == 16:
+                    tail.append(checkpoint)
+                elif action['action'] != 'wait_for_pixel':
+                    tail.append(copy.deepcopy(action))
+        return [*first,flow,select,*tail]
     enhance=copy.deepcopy(profiles()['character_enhance'])
     enhance.update(click={'x':130,'y':539},max_clicks=2,retry_after_seconds=3)
     promotion=copy.deepcopy(profiles()['character_promotion'])

@@ -22,7 +22,22 @@ class PetOutcome:
 
 
 def load_screens():
-    return json.loads((Path(__file__).resolve().parent / "assets/pet.json").read_text(encoding="utf-8"))
+    assets = Path(__file__).resolve().parent / 'assets'
+    screens = json.loads((assets / 'pet.json').read_text(encoding='utf-8'))
+    current = json.loads((assets / 'pet-current.json').read_text(encoding='utf-8'))
+    screens.extend([current['panel'], current['reward']])
+    left,top,right,bottom = current['counter_box']
+    xs,ys = list(range(left,right,current['stride'])), list(range(top,bottom,current['stride']))
+    for sample in current['counters']:
+        if len(sample['rows']) != len(ys) or any(len(row) != 6*len(xs) for row in sample['rows']):
+            raise ValueError('Amostra de contador do pet invalida.')
+        anchors = copy.deepcopy(current['panel']['anchors'])
+        for y,row in zip(ys,sample['rows']):
+            for index,x in enumerate(xs):
+                color = list(bytes.fromhex(row[6*index:6*(index+1)]))
+                anchors.append(dict(x=x/433,y=y/809,color=color,tolerance=15,radius=0))
+        screens.append(dict(name=f"pet_current_{sample['used']}", anchors=anchors))
+    return screens
 
 
 class PetRunner(MacroRunner):
@@ -38,8 +53,11 @@ class PetRunner(MacroRunner):
             raise MacroCancelled("O ciclo diario mudou durante o pet da guild.")
 
     def _flow(self, hwnd, terminal, screens):
-        return super()._do_screen_flow(dict(action="screen_flow", terminal=terminal,
-            screens=screens, timeout=40, poll_seconds=.3, stable_frames=2, frame_size=[434,810]), hwnd)
+        step = dict(action="screen_flow", terminal=terminal, screens=screens,
+                    timeout=40, poll_seconds=.3, stable_frames=2, frame_size=[434,810])
+        if terminal == 'pet_open' and any(s['name'] == 'pet_open_current' for s in screens):
+            step['terminal_aliases'] = ['pet_open_current']
+        return super()._do_screen_flow(step, hwnd)
 
     def _enter(self, hwnd):
         from .guild_navigation import guild_entry_step
@@ -50,7 +68,8 @@ class PetRunner(MacroRunner):
         # Guild screen remains after the first click; never apply this policy
         # to the clean/reward controls below.
         guild.update(click=dict(x=181, y=773), max_clicks=2, retry_after_seconds=3)
-        return self._flow(hwnd, "pet_open", [guild, self.profiles["pet_open"]])
+        panels = [s for name,s in self.profiles.items() if name in {'pet_open','pet_open_current'}]
+        return self._flow(hwnd, "pet_open", [guild, *panels])
 
     def _exit(self, hwnd):
         from .home import home_step
@@ -64,6 +83,7 @@ class PetRunner(MacroRunner):
 
     def _counter(self, hwnd):
         candidates = [self.profiles[f"pet_{n}"] for n in range(6)]
+        candidates += [s for name,s in self.profiles.items() if name.startswith('pet_current_')]
         matches = matching_screens(self._last_frame,candidates)
         if len(matches) != 1:
             raise MacroError("Contador ou custo do pet da guild desconhecido; nenhum gasto autorizado.")
@@ -110,7 +130,8 @@ class PetRunner(MacroRunner):
     def _final_progress(self, hwnd, *, starting_progress, max_progress, timeout=40):
         """Observe a stable counter after the bounded click batch; confirm reward only if seen."""
         counters = [self.profiles[f"pet_{number}"] for number in range(6)]
-        reward = self.profiles["reward"]
+        counters += [s for name,s in self.profiles.items() if name.startswith('pet_current_')]
+        rewards = [s for name,s in self.profiles.items() if name in {'reward','reward_current'}]
         deadline = self._clock() + timeout
         candidate, stable = None, 0
         reward_clicks, reward_clicked_at = 0, None
@@ -128,7 +149,7 @@ class PetRunner(MacroRunner):
                 self._last_frame = frame
                 if (frame.width, frame.height) != (434, 810) or self._backend.client_size(hwnd) != (434, 810):
                     raise MacroError("Geometria do pet mudou durante a confirmacao final.")
-                matches = matching_screens(frame, [*counters, reward])
+                matches = matching_screens(frame, [*counters, *rewards])
             else:
                 matches = []
             if len(matches) > 1:
@@ -137,7 +158,8 @@ class PetRunner(MacroRunner):
             last_seen = current or "unknown"
             stable = stable + 1 if current is not None and current == candidate else (1 if current else 0)
             candidate = current
-            if current == reward["name"] and stable >= 2:
+            if current in {s['name'] for s in rewards} and stable >= 2:
+                reward = next(s for s in rewards if s['name'] == current)
                 retry = reward.get("retry_after_seconds", 2.0)
                 due = reward_clicked_at is None or self._clock() - reward_clicked_at >= retry
                 if due:
@@ -148,8 +170,8 @@ class PetRunner(MacroRunner):
                     reward_clicks += 1
                     reward_clicked_at = self._clock()
                     candidate, stable = None, 0
-            elif current and current.startswith("pet_") and current[4:].isdigit() and stable >= 2:
-                progress = int(current[4:])
+            elif current and current.startswith("pet_") and current.rsplit('_',1)[-1].isdigit() and stable >= 2:
+                progress = int(current.rsplit('_',1)[-1])
                 if progress < starting_progress:
                     raise MacroError("Contador final do pet diminuiu; progresso nao confirmado.")
                 if progress > max_progress:

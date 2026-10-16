@@ -95,4 +95,12 @@ def prepare_guild_shop(steps):
         "poll_seconds": 0.3, "stable_frames": 2, "frame_size": [434, 810],
         "screens": [main, *_map_profiles(), guild, shop],
     }
+    from league_bot.macro import load_macro
+    known = load_macro(Path(__file__).parent / 'macros/loja_guild_free.json')
+    if steps == known:
+        free = json.loads((Path(__file__).parent / 'assets/guild-shop-free.json').read_text(encoding='utf-8'))
+        checkpoint = dict(action='screen_flow',terminal='guild_shop_free',screens=[free],
+                          timeout=8,poll_seconds=.3,stable_frames=2,frame_size=[434,810])
+        return [step,checkpoint,*[copy.deepcopy(s) for s in steps[11:]
+                                 if s['action'] != 'wait_for_pixel']]
     return [step, *copy.deepcopy(steps[10:])]

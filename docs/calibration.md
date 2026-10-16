@@ -71,6 +71,13 @@ ou mais interrompem a operacao. A escala nao corrige reorganizacao de botoes,
 fontes diferentes nem garante que mascaras de contadores sobrevivam a outra
 resolucao. Esses casos continuam aparecendo como pendencias de calibracao.
 
+Quando uma daily chega ao painel correto mas rejeita um contador ou botao,
+use o PNG e o JSON de `state/diagnostics/screen-failure-*` para identificar
+o estado observado. A calibracao de anchors nao adiciona mascaras de digitos
+aos leitores de Orb, scrolls ou invocacoes. Esses leitores precisam de uma
+variante rotulada do raster atual e de verificacao contra estados negativos;
+aumentar tolerancias de navegacao nao resolve a leitura dos contadores.
+
 Para desativar a geometria relativa, mova o arquivo `geometry.json` para um
 backup e reinicie o bot. A gravacao nova converte tambem a posicao fisica do mouse
 para a referencia, mantendo cliques gravados e capturas no mesmo espaco.

@@ -90,6 +90,16 @@ class SummonReaderTests(unittest.TestCase):
         self.assertEqual(read_summons(ready),{'summon_sword':2})
         self.assertFalse(current_cooldown(ready))
 
+    def test_current_sword_popup_reads_three_of_three_exactly(self):
+        frame = png_frame(FIXTURES/'weapon-current-cooldown-3of3.png')
+        self.assertEqual(read_summons(frame), {'summon_sword': 3})
+
+    def test_current_accessory_popup_tracks_ready_and_cooldown_quotas(self):
+        for used, cooldown in ((1,False),(2,True)):
+            frame = png_frame(FIXTURES/f'accessory-current-{used}of3.png')
+            self.assertEqual(read_summons(frame), {'summon_accessory':used})
+            self.assertEqual(current_cooldown(frame), cooldown)
+
     def test_current_popup_can_recover_without_touching_summon_controls(self):
         from league_bot.slayer.home import home_step
         popup=png_frame(FIXTURES/'weapon-current-cooldown-0918.png')
@@ -190,6 +200,65 @@ class SummonObserverTests(unittest.TestCase):
         runner = self.make_runner([summon_frame("skill", 1)], status=status)
         runner.run([observation_step("summon_skill")])
         self.assertEqual(status.records[0][0:3], ("summon_skill", 1, 3))
+        self.assertEqual(self.backend.clicks(), [])
+
+    def test_exhausted_task_closes_popup_skips_only_its_claims_and_continues(self):
+        sword = png_frame(FIXTURES/'weapon-current-cooldown-3of3.png')
+        menu = current_summon_menu_frame()
+        frames = [sword]*2 + [menu]*4 + [summon_frame('accessory',0)]*2 + [summon_frame('skill',1)]*2
+        runner = self.make_runner(frames)
+        runner.run([
+            observation_step('summon_sword', exhausted_branch=True),
+            {'action':'click','x':10,'y':20,'summon_task':'summon_sword'},
+            observation_step('summon_sword', exhausted_branch=True),
+            {'action':'click','x':30,'y':40,'summon_task':'summon_sword'},
+            observation_step('summon_accessory', exhausted_branch=True),
+            {'action':'click','x':50,'y':60,'summon_task':'summon_accessory'},
+            observation_step('summon_skill', exhausted_branch=True),
+            {'action':'click','x':70,'y':80,'summon_task':'summon_skill'},
+            {'action':'click','x':90,'y':100},
+        ])
+        self.assertEqual(self.backend.clicks(),[(20,340,False),(50,60,True),(70,80,True),(90,100,True)])
+
+    def test_quotas_below_three_keep_the_recorded_claim_path(self):
+        frames={0:summon_frame('weapon',0),1:summon_frame('weapon',1),
+                2:png_frame(FIXTURES/'weapon-current-ready-2.png')}
+        for used,frame in frames.items():
+            with self.subTest(used=used):
+                runner=self.make_runner([frame]*2)
+                runner.run([observation_step('summon_sword',exhausted_branch=True),
+                            {'action':'click','x':12,'y':34,'summon_task':'summon_sword'}])
+                self.assertEqual(self.backend.clicks(),[(12,34,True)])
+
+    def test_known_recording_tags_only_task_claim_segments(self):
+        from league_bot.macro import load_macro
+        from league_bot.slayer.dungeon_navigation import prepare_summons
+        known=load_macro(ROOT/'league_bot/slayer/macros/free_wpacs.json')
+        steps=prepare_summons(known)
+        by_click={(step.get('x'),step.get('y')):step for step in steps if step['action']=='click'}
+        self.assertEqual(by_click[('57.26%','56.11%')].get('summon_task'),'summon_sword')
+        self.assertEqual(by_click[('51.04%','57.47%')].get('summon_task'),'summon_accessory')
+        self.assertEqual(by_click[('87.21%','79.81%')].get('summon_task'),'summon_skill')
+        self.assertNotIn('summon_task',by_click[('92.05%','96.85%')])
+        # Opening the next popup belongs to navigation, never to the exhausted
+        # task's claim block. Otherwise sword 3/3 would also skip Accessories.
+        accessory_entry = [s for s in steps if s['action'] == 'click'
+                           and s.get('x') == '91.13%']
+        self.assertEqual(accessory_entry, [])
+        self.assertEqual(len([s for s in steps if s.get('summon_open_popup') == 'summon_accessory']), 1)
+        markers=[s for s in steps if s.get('summon_observe') and not s.get('summon_allow_menu')
+                 and not s.get('summon_open_popup')]
+        self.assertTrue(all(m.get('summon_exhausted_branch') for m in markers))
+
+    def test_accessory_entry_opens_once_only_from_recognized_menu(self):
+        from league_bot.slayer.summons import popup_entry_step
+        runner = self.make_runner([current_summon_menu_frame()]*2)
+        runner.run([popup_entry_step('summon_accessory')])
+        self.assertEqual(self.backend.clicks(), [(385,512,False)])
+        from league_bot.imaging import solid_frame
+        runner = self.make_runner([solid_frame(434,810,(0,0,0))])
+        with self.assertRaisesRegex(MacroError, 'desconhecido'):
+            runner.run([popup_entry_step('summon_accessory')])
         self.assertEqual(self.backend.clicks(), [])
 
     def test_unfamiliar_screen_times_out_unknown_without_false_completion_or_click(self):

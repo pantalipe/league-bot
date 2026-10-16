@@ -39,6 +39,26 @@ class ScrollTests(unittest.TestCase):
         frame = png_frame(ROOT / "tests/fixtures/slayer/scrolls-window-resized-back.png")
         self.assertEqual(read_counts(frame),(2,1,1,0))
 
+    def test_current_geometry_scroll_counters_are_read_exactly(self):
+        frame = png_frame(ROOT / "tests/fixtures/slayer/scrolls-current-geometry.png")
+        self.assertEqual(matching_screens(frame, [profiles()["screen"]]), ["scrolls_panel"])
+        self.assertEqual(read_counts(frame), (2,2,1,0))
+
+    def test_current_third_scroll_counter_reads_two_of_two(self):
+        frame = png_frame(ROOT / "tests/fixtures/slayer/scrolls-current-2-2-2-0.png")
+        self.assertEqual(matching_screens(frame, [profiles()["screen"]]), ["scrolls_panel"])
+        self.assertEqual(read_counts(frame), (2,2,2,0))
+
+    def test_current_fourth_scroll_counter_reads_one_of_two(self):
+        frame = png_frame(ROOT / "tests/fixtures/slayer/scrolls-current-2-2-2-1.png")
+        self.assertEqual(matching_screens(frame, [profiles()["screen"]]), ["scrolls_panel"])
+        self.assertEqual(read_counts(frame), (2,2,2,1))
+
+    def test_current_fourth_scroll_counter_reads_two_of_two(self):
+        frame = png_frame(ROOT / "tests/fixtures/slayer/scrolls-current-2-2-2-2.png")
+        self.assertEqual(matching_screens(frame, [profiles()["screen"]]), ["scrolls_panel"])
+        self.assertEqual(read_counts(frame), (2,2,2,2))
+
     def test_real_failure_has_exact_quotas_and_safe_close_recovery(self):
         frame = png_frame(FIXTURE)
         self.assertEqual(read_counts(frame), (2,1,1,0))

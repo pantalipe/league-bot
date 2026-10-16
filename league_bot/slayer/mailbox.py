@@ -23,7 +23,13 @@ def recovery_screens():
     data = load_profiles()
     screen = copy.deepcopy(next(s for s in data["screens"] if s["name"] == "mailbox_panel"))
     screen.update(name="home_close_mailbox", click=dict(data["close"]))
-    return [screen]
+    result = [screen]
+    for variant in data['screens']:
+        if variant['name'] == 'mailbox_panel_current':
+            variant = copy.deepcopy(variant)
+            variant.update(name='home_close_mailbox_current',click=dict(data['close']))
+            result.append(variant)
+    return result
 
 
 @dataclass(frozen=True)
@@ -54,11 +60,13 @@ class MailboxRunner(MacroRunner):
         step = dict(action="screen_flow", terminal=terminal, screens=screens,
                     timeout=timeout, poll_seconds=.3, stable_frames=2,
                     frame_size=[434, 810])
+        if terminal == 'mailbox_panel' and any(s['name']=='mailbox_panel_current' for s in screens):
+            step['terminal_aliases'] = ['mailbox_panel_current']
         return super()._do_screen_flow(step, hwnd)
 
     def _observe_state(self, hwnd, timeout=10):
         deadline = self._clock() + timeout
-        candidates = [self.screens["mailbox_populated"], self.screens["mailbox_empty"]]
+        candidates = [s for name,s in self.screens.items() if name.startswith(('mailbox_populated','mailbox_empty'))]
         previous = None
         stable = 0
         last_error = "Mailbox desconhecido; nenhuma recompensa acionada."
@@ -70,12 +78,13 @@ class MailboxRunner(MacroRunner):
                 raise MacroError("Geometria do Mailbox mudou; nenhuma recompensa acionada.")
             # The common title/frame must also match. State profiles include the
             # same anchors, but this separate check prevents partial UI matches.
-            panel = self.screens["mailbox_panel"]
-            if matching_screens(frame, [panel]) != ["mailbox_panel"]:
+            panels = [s for name,s in self.screens.items() if name.startswith('mailbox_panel')]
+            if not matching_screens(frame, panels):
                 name = None
             else:
                 matches = matching_screens(frame, candidates)
-                name = matches[0] if len(matches) == 1 else None
+                states = {name.removesuffix('_current') for name in matches}
+                name = next(iter(states)) if len(states) == 1 else None
             if name is None:
                 previous, stable = None, 0
             else:
@@ -86,9 +95,9 @@ class MailboxRunner(MacroRunner):
             self._pause(min(.3, max(0, deadline - self._clock())))
         raise MacroError(last_error)
 
-    def _record(self):
+    def _record(self, source='visual'):
         if self.store:
-            self.store.mark_progress(TASK, 1, 1, label="Mailbox", source="visual",
+            self.store.mark_progress(TASK, 1, 1, label="Mailbox", source=source,
                                      expected_cycle=self.cycle)
 
     def _do_screen_flow(self, step, hwnd):
@@ -102,7 +111,8 @@ class MailboxRunner(MacroRunner):
         from .navigation import load_daily_navigation
         menu = copy.deepcopy(load_daily_navigation()["menu_open"])
         menu.update(click={"x": 377, "y": 90}, max_clicks=2, retry_after_seconds=3)
-        hwnd = self._flow(hwnd, "mailbox_panel", [main, menu, self.screens["mailbox_panel"]])
+        panels = [s for name,s in self.screens.items() if name.startswith('mailbox_panel')]
+        hwnd = self._flow(hwnd, "mailbox_panel", [main, menu, *panels])
         hwnd, state = self._observe_state(hwnd)
         if state == "mailbox_empty":
             close = copy.deepcopy(self.screens["mailbox_panel"])
@@ -116,8 +126,9 @@ class MailboxRunner(MacroRunner):
             if not self.claim_steps:
                 raise MacroError("Passos originais de recompensa do Mailbox ausentes.")
             super().run(self.claim_steps, "mailbox_claims")
+            hwnd = super()._do_screen_flow(home_step(), hwnd)
             self.outcome = MailboxOutcome()
-        self._record()
+        self._record('visual' if state == 'mailbox_empty' else 'macro')
         return hwnd
 
 
@@ -150,9 +161,11 @@ def run_mailbox(game):
             original = previous(backend, title, foreground, log)
             if not isinstance(original, MacroRunner):
                 raise GameError("Mailbox exige o executor visual.")
+            stock = json.loads((Path(__file__).parent/'macros/mailbox.json').read_text(encoding='utf-8'))['steps']
+            claims = [s for s in steps[7:] if s['action'] != 'wait_for_pixel'] if steps == stock else steps[7:]
             runner = MailboxRunner(backend, title, foreground, log,
                 sleep=original._sleep, clock=original._clock, store=store,
-                cycle=cycle, claim_steps=steps[7:])
+                cycle=cycle, claim_steps=claims)
             runners.append(runner)
             return runner
         with game._exclusive():

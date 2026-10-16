@@ -127,10 +127,24 @@ própria aba, confirmando a tela principal antes de verificar a presença.
 Na gravação conhecida de `colheita_arma_alma`, a abertura de Equipment exige
 confirmação visual. Um clique de navegação sem efeito pode ser repetido uma
 vez, após três segundos e duas observações da tela principal. Telas
-desconhecidas interrompem o fluxo; os cliques e condições de coleta da
-gravação permanecem preservados. Essa repetição é exclusiva da navegação,
+desconhecidas interrompem a entrada; depois de confirmar Equipment, a selecao
+de Weapon e as coletas seguem em bloco, com retorno confirmado ao final.
+Essa repetição é exclusiva da navegação,
 e os demais fluxos mantêm o comportamento de não repetir um clique sem
 transição de tela.
+
+As gravacoes conhecidas de combinacao, familiar, colheita da arma/alma,
+coleta do refinamento, treinador e coleta de missoes executam blocos de acoes:
+confirmam a entrada e o retorno, preservam os cliques e pausas gravados e nao
+esperam uma cor isolada entre cada clique. O inicio do refinamento e a loja
+da besta usam checkpoints nos paineis correspondentes antes do bloco gratuito.
+Gravacoes personalizadas diferentes das distribuidas continuam preservadas.
+Anuncios, compras e entradas com quota mantem seus leitores especificos;
+concluir um bloco confirma a execucao, sem inventar um contador visual.
+Na Floresta, a selecao da ultima linha e apenas navegacao: a dificuldade 120
+e confirmada no popup antes de entrar. No Dragao, o bloco conhecido mantem
+um checkpoint da selecao de multiplicador e da quota gratuita 0/3 antes do X3.
+A loja da guild confirma a oferta Free antes de executar sua coleta gravada.
 
 As macros são gravações de cliques, esperas e condições visuais. Uma gravação precisa ser validada ao vivo antes de entrar na seleção executada: confira a tela inicial, as telas intermediárias, a tela final, os tempos de carregamento, o layout da janela, o idioma e os custos em diamantes. Teste uma macro por vez no PC de destino e use `/cancel` ou o cancelamento de macro disponível no host se o fluxo sair do esperado.
 

@@ -1,0 +1,243 @@
+{
+  "version": 1,
+  "panel": {
+    "name": "pet_open_current",
+    "anchors": [
+      {
+        "x": 0.4018475750577367,
+        "y": 0.19530284301606923,
+        "color": [
+          104,
+          62,
+          13
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.40415704387990764,
+        "y": 0.20024721878862795,
+        "color": [
+          104,
+          62,
+          13
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.5011547344110855,
+        "y": 0.19530284301606923,
+        "color": [
+          142,
+          115,
+          82
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.6212471131639723,
+        "y": 0.19530284301606923,
+        "color": [
+          104,
+          62,
+          13
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.9260969976905312,
+        "y": 0.24721878862793573,
+        "color": [
+          21,
+          12,
+          7
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.09468822170900693,
+        "y": 0.23485784919653893,
+        "color": [
+          0,
+          0,
+          0
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.9168591224018475,
+        "y": 0.8640296662546354,
+        "color": [
+          97,
+          61,
+          37
+        ],
+        "tolerance": 15,
+        "radius": 0
+      }
+    ]
+  },
+  "reward": {
+    "name": "reward_current",
+    "anchors": [
+      {
+        "x": 0.18937644341801385,
+        "y": 0.4326328800988875,
+        "color": [
+          40,
+          40,
+          40
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.8198614318706697,
+        "y": 0.4326328800988875,
+        "color": [
+          42,
+          42,
+          35
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.3348729792147806,
+        "y": 0.4647713226205192,
+        "color": [
+          31,
+          23,
+          16
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.4018475750577367,
+        "y": 0.4647713226205192,
+        "color": [
+          31,
+          23,
+          16
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.5658198614318707,
+        "y": 0.4647713226205192,
+        "color": [
+          196,
+          194,
+          192
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.5242494226327945,
+        "y": 0.4672435105067985,
+        "color": [
+          31,
+          23,
+          16
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.37644341801385683,
+        "y": 0.7898640296662547,
+        "color": [
+          237,
+          172,
+          82
+        ],
+        "tolerance": 15,
+        "radius": 0
+      },
+      {
+        "x": 0.6235565819861432,
+        "y": 0.8393077873918418,
+        "color": [
+          159,
+          107,
+          28
+        ],
+        "tolerance": 15,
+        "radius": 0
+      }
+    ],
+    "click": {
+      "x": 216,
+      "y": 660
+    }
+  },
+  "counter_box": [
+    330,
+    586,
+    365,
+    601
+  ],
+  "stride": 2,
+  "counters": [
+    {
+      "used": 0,
+      "rows": [
+        "462c1b462c1bb5aaa4ffffff5b4435ded9d7ded9d7462c1b462c1b462c1bf8f7f7ccc5c0ded9d7ded9d7dcd7d4ffffffb2a7a0462c1b",
+        "462c1b462c1be4e0dea2958cffffff7f6d61b4a9a3c7bfba462c1b624c3ec4bbb6d1cac6c2b9b47f6d617f6d60908076e2dedc462c1b",
+        "462c1b462c1bffffff462c1bffffff462c1b928379c7bfba462c1bffffff725e51c8c0bbffffffffffff725f52462c1bd7d2ce462c1b",
+        "462c1b462c1bfefefea2958cffffff462c1b928379c7bfbac5bdb8fdfdfc462c1b472d1d472d1c5d4637fdfdfc908076fefefe462c1b",
+        "462c1b462c1bcdc6c1eceae8ffffffd9d4d1e9e6e4c7bfbaf3f2f194857c462c1bc8c0bbedeae9ded9d6fdfdfce8e5e3cac2be462c1b",
+        "462c1b462c1b462c1b95877d51392995877d95877d462c1bffffff462c1b462c1b462c1b95877d95877d462c1b95877d462c1b462c1b",
+        "462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b",
+        "462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b"
+      ]
+    },
+    {
+      "used": 2,
+      "rows": [
+        "462c1b462c1bb5aaa4ffffff5b4435ded9d7ded9d7462c1b462c1b462c1bf8f7f7ccc5c0ded9d7ded9d7dcd7d4ffffffb2a7a0462c1b",
+        "462c1b462c1be4e0dea2958cffffff7f6d61b4a9a3c7bfba462c1b624c3ec4bbb6d1cac6c2b9b47f6d617f6d60908076e2dedc462c1b",
+        "462c1b462c1bffffff462c1b462c1b5d4738ffffff7f6d61462c1bffffff725e51c8c0bbffffffffffff725f52462c1bd7d2ce462c1b",
+        "462c1b462c1bfefefea2958c614b3dffffff654f41462c1bc5bdb8fdfdfc462c1b472d1d472d1c5d4637fdfdfc908076fefefe462c1b",
+        "462c1b462c1bcdc6c1eceae8ffffffefecebd9d4d1aca199f3f2f194857c462c1bc8c0bbedeae9ded9d6fdfdfce8e5e3cac2be462c1b",
+        "462c1b462c1b462c1b95877d95877d95877d95877d7d6b5fffffff462c1b462c1b462c1b95877d95877d462c1b95877d462c1b462c1b",
+        "462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b",
+        "462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b"
+      ]
+    },
+    {
+      "used": 4,
+      "rows": [
+        "462c1b462c1bc9c2bdffffff462c1b462c1bc4bcb7827065462c1b462c1b9b8d84beb4afded9d7ded9d7ded9d7e9e6e4eceae8462c1b",
+        "462c1b462c1bf2f0ef746054462c1b9f9188ffffff8f7f75462c1b462c1bffffff6b5649ffffff7f6d617f6d614c3222ffffff7e6c60",
+        "462c1b462c1bffffff462c1b9b8c83f9f9f8e6e3e08f7f75462c1bb0a59e9f9188462c1bffffffffffffb7ada64a31207b685cbfb6b0",
+        "462c1b462c1bffffff746054ffffffffffffffffffffffff695446ffffff543c2c462c1b472e1d462c1bffffff584132ffffffbdb3ad",
+        "462c1b462c1be6e2e0e3dfdc5c45365c4536e3dfdc9c8e85e1dcdaf1efee462c1b462c1bffffffd9d4d1ffffffcec7c3ffffff462c1b",
+        "462c1b462c1b462c1b95877d462c1b462c1b88776c654f41ffffff462c1b462c1b462c1b806f6395877d6c584b867469685345462c1b",
+        "462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b",
+        "462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b"
+      ]
+    },
+    {
+      "used": 5,
+      "rows": [
+        "462c1b462c1bb5aaa4ffffffded9d7ded9d7ded9d7b0a59e462c1b462c1bf8f7f7ccc5c0ded9d7ded9d7dcd7d4ffffffb2a7a0462c1b",
+        "462c1b462c1be4e0dea2958cffffff7f6d617f6d616e594c462c1b624c3ec4bbb6d1cac6c2b9b47f6d617f6d60908076e2dedc462c1b",
+        "462c1b462c1bffffff462c1bffffffffffffffffff654f41462c1bffffff725e51c8c0bbffffffffffff725f52462c1bd7d2ce462c1b",
+        "462c1b462c1bfefefea2958c472e1d462c1b928379c7bfbac5bdb8fdfdfc462c1b472d1d472d1c5d4637fdfdfc908076fefefe462c1b",
+        "462c1b462c1bcdc6c1eceae8ffffffd9d4d1e9e6e4c7bfbaf3f2f194857c462c1bc8c0bbedeae9ded9d6fdfdfce8e5e3cac2be462c1b",
+        "462c1b462c1b462c1b95877d51392995877d95877d462c1bffffff462c1b462c1b462c1b95877d95877d462c1b95877d462c1b462c1b",
+        "462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b",
+        "462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b462c1b"
+      ]
+    }
+  ]
+}

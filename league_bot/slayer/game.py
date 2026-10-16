@@ -78,6 +78,20 @@ class SlayerDailyGame(SlayerGame):
             raise MacroError(f"Calibragem local invalida: {exc}") from exc
 
     def run_macro(self, name):
+        if name == "montar_besta":
+            from pathlib import Path
+            from league_bot.macro import load_macro
+            from .companion import run_mount
+            steps = self.load_macro_steps(name)
+            entry_index = next((index for index, step in enumerate(steps)
+                                if step.get("action") == "screen_flow"
+                                and step.get("terminal") == "beast_open"), None)
+            known = load_macro(Path(__file__).parent / "macros" / f"{name}.json")
+            tail_start = None if entry_index is None else entry_index + 1
+            tail_end = None if tail_start is None else tail_start + len(known[7:])
+            if tail_start is None or steps[tail_start:tail_end] != known[7:]:
+                return super().run_macro(name)
+            return run_mount(self, name, steps)
         if name == "ativar_scrolls":
             from .scrolls import run_scrolls
             return run_scrolls(self)
@@ -190,8 +204,12 @@ class SlayerDailyGame(SlayerGame):
 
     def load_macro_steps(self, name):
         steps = super().load_macro_steps(name)
+        from .action_blocks import use_action_block, action_block
+        batch = use_action_block(name, steps)
         from .battle_navigation import prepare_battle_entry
         steps = prepare_battle_entry(name, steps)
+        from .companion import prepare_mount
+        steps = prepare_mount(name, steps)
         from .dungeon_navigation import prepare_dungeon_macro, prepare_summons
         steps = prepare_dungeon_macro(name, steps)
         if name == "free_wpacs":
@@ -205,6 +223,11 @@ class SlayerDailyGame(SlayerGame):
         if name == "colheita_arma_alma":
             from .equipment import prepare_soul_harvest
             steps = prepare_soul_harvest(steps)
+        if name == "refinamento_skill":
+            from .skill_navigation import prepare_refinement
+            steps = prepare_refinement(name, steps)
+        if batch:
+            steps = action_block(steps)
         from .plan import MACRO_CATALOG
         if name in MACRO_CATALOG and name != "cubo_de_melhora":
             from .home import home_step

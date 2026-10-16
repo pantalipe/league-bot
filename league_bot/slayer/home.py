@@ -11,11 +11,14 @@ def load_screens():
 def home_step():
     from .navigation import load_daily_navigation, load_attendance_screens
     screens = load_screens()
+    from .companion import recovery_screens as companion_recovery
+    screens.extend(companion_recovery())
     from .scrolls import recovery_screens as scroll_recovery
     screens.extend(scroll_recovery())
     from .battle_navigation import recovery_screens as battle_recovery
     from .quest_navigation import recovery_screens as quest_recovery
     screens.extend(battle_recovery())
+    screens.extend(json.loads((Path(__file__).resolve().parent / "assets/dragon-recovery.json").read_text(encoding="utf-8")))
     screens.extend(quest_recovery())
     from .mailbox import recovery_screens as mailbox_recovery
     screens.extend(mailbox_recovery())
@@ -35,14 +38,15 @@ def home_step():
     screens += [nav["settings_return"], nav["menu_return"]]
     from .pet import load_screens as pet_screens
     for screen in pet_screens():
-        if screen["name"] == "reward":
+        if screen["name"] in {"reward", "reward_current"}:
             screen = copy.deepcopy(screen)
-            screen.update(name="home_confirm_pet_reward", max_clicks=2, retry_after_seconds=3)
+            screen.update(name="home_confirm_pet_" + screen['name'], max_clicks=2, retry_after_seconds=3)
             screens.append(screen)
-        elif screen["name"] in {"pet_open", "guild"}:
+        elif screen["name"] in {"pet_open", "pet_open_current", "guild"}:
             screen = copy.deepcopy(screen)
-            panel = screen["name"] == "pet_open"
-            screen["name"] = "home_close_pet" if panel else "home_return_guild"
+            panel = screen["name"] != "guild"
+            screen["name"] = ("home_close_pet_current" if screen['name'] == 'pet_open_current' else
+                              "home_close_pet" if panel else "home_return_guild")
             screen["click"] = {"x":217,"y":746} if panel else {"x":52,"y":777}
             screens.append(screen)
     for screen in [*load_attendance_screens(), nav["attendance_claimed_settings"]]:
