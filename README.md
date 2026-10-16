@@ -50,8 +50,8 @@ Ela inclui scrolls e montaria como dependências dessas duas batalhas. Substitui
 somente a longa espera gravada de cada luta pelo detector da estrela no botão
 `Battle settings`, no canto inferior direito. A estrela precisa desaparecer
 e voltar de forma estável antes dos cliques de saída. Os demais cliques continuam
-gravados. Dragão e floresta também podem participar com suas esperas gravadas,
-sem detector de estrela. Presença e treinador ficam fora.
+gravados. Dragão e floresta usam o mesmo detector de estrela no lugar da espera
+da batalha. Presença e treinador ficam fora.
 Se a estrela não desaparecer ou não voltar dentro do limite, a execução para e
 salva uma captura de diagnóstico. O retorno da estrela não comprova vitória.
 Esse modo ainda precisa de teste ao vivo acompanhado; `/daily` não foi substituído.

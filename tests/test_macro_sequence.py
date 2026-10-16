@@ -269,15 +269,30 @@ class MacroSequenceTests(unittest.TestCase):
         with self.assertRaisesRegex(SequenceError, "missing_new_recording"):
             sequence.preflight()
 
-    def test_recorded_dragon_retains_fixed_wait_without_star_detector(self):
-        runner = FakeRunner()
-        sequence = self.sequence(
-            {"dragon_new": [{"action": "wait", "seconds": 51.5}]},
-            ["dragao_dormente"], runner, include_battles=True,
-            recording_names={"dragao_dormente": "dragon_new"},
-        )
-        sequence.run()
-        self.assertEqual(runner.calls[0][1], [{"action": "wait", "seconds": 51.5}])
+    def test_dragon_and_forest_replace_battle_wait_with_star_detector(self):
+        for name, duration in (("dragao_dormente", 51.5), ("floresta_circulacao", 89.9)):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as folder:
+                runner = FakeRunner()
+                calls = []
+                class Waiter:
+                    def wait(inner):
+                        self.assertEqual(runner.calls[-1][0], name + "_entry")
+                        calls.append("star")
+                raw = [{"action": "wait", "seconds": 10.4},
+                       {"action": "click", "x": 1, "y": 1},
+                       {"action": "wait", "seconds": duration},
+                       {"action": "click", "x": 2, "y": 2}]
+                sequence = MacroSequence(
+                    FakeLibrary({"new": raw}), runner, Path(folder) / "state.json",
+                    selected_names=[name], include_battles=True,
+                    recording_names={name: "new"}, battle_waiter=Waiter(),
+                )
+                sequence.run()
+                self.assertEqual(calls, ["star"])
+                self.assertEqual([n for n, _ in runner.calls], [name + "_entry", name + "_exit"])
+                self.assertEqual(runner.calls[0][1][0], {"action": "wait", "seconds": 10.4})
+                self.assertFalse(any(step.get("seconds") == duration
+                                     for _, steps in runner.calls for step in steps))
 
     def test_trainer_stays_blocked_with_battles_enabled(self):
         sequence = self.sequence({"treinador": [{"action": "wait", "seconds": 1}]},

@@ -91,7 +91,7 @@ def build_parser() -> argparse.ArgumentParser:
                                 ("run", "executa coletas aleatorias com timers")):
         sequence_action = sequence_sub.add_parser(action, help=description)
         sequence_action.add_argument("--battles", action="store_true",
-                                     help="inclui scrolls, montaria, cubo e cave XP; espera retorno da estrela")
+                                     help="inclui scrolls, montaria, cubo, cave XP, dragao e floresta; espera retorno da estrela")
     sequence_sub.add_parser("buffs", help="ativa scrolls e montaria antes das batalhas manuais")
     sequence_sub.add_parser("status", help="mostra execucoes registradas, sem consultar o jogo")
     sequence_sub.add_parser("confirm-interrupted", help="registra como concluida a macro interrompida que voce terminou manualmente")

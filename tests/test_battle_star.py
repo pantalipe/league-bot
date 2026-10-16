@@ -65,7 +65,9 @@ class BattleStarTests(unittest.TestCase):
             self.skipTest("Pillow is only needed to read development screenshots")
         root = Path(__file__).parents[1] / "macros/local/recordings"
         paths = [root / "cubo_de_melhora/20261010_084503_c276c305e20c4410903cd664833f5e71/0007_before.png",
-                 root / "cave_treinoxp/20261011_092521_2dd080d7dd3a4b559bd25f34a4c5c407/0005_before.png"]
+                 root / "cave_treinoxp/20261011_092521_2dd080d7dd3a4b559bd25f34a4c5c407/0005_before.png",
+                 root / "forest/20261016_105457_88e4b226711444b5bbdb2b982f39885e/0008_before.png",
+                 root / "shelterflamedragon/20261016_104915_6aa8876ac5e24ea79c5eb83b0ad77129/0008_before.png"]
         if not all(path.exists() for path in paths):
             self.skipTest("personal source recordings are not distributed")
         for path in paths:

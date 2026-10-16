@@ -22,8 +22,10 @@ BLOCKED = frozenset({
     "cubo_de_melhora", "cave_treinoxp", "dragao_dormente",
     "floresta_circulacao", "treinador",
 })
-BATTLES = frozenset({"cubo_de_melhora", "cave_treinoxp"})
-RECORDED_BATTLES = frozenset({"dragao_dormente", "floresta_circulacao"})
+BATTLE_WAIT_MINIMUM = {"cubo_de_melhora": 120, "cave_treinoxp": 120,
+                       "dragao_dormente": 30, "floresta_circulacao": 30}
+BATTLES = frozenset(BATTLE_WAIT_MINIMUM)
+BONUS_BATTLES = frozenset({"cubo_de_melhora", "cave_treinoxp"})
 ACTIVATIONS = frozenset({"ativar_scrolls", "montar_besta"})
 FINISHED_DEPENDENCIES = frozenset(FINISHED_DAILY_DEPENDENCIES)
 ALLOWED_ACTIONS = frozenset({
@@ -105,20 +107,19 @@ class MacroSequence:
         selected = list(self.selected_names) if self.selected_names is not None else [
             name for name in MACRO_CATALOG
             if ((name not in BLOCKED and name not in ACTIVATIONS)
-                or (self.include_battles and (name in BATTLES or name in ACTIVATIONS
-                                             or name in RECORDED_BATTLES)))
+                or (self.include_battles and (name in BATTLES or name in ACTIVATIONS)))
         ]
         if not selected:
             raise SequenceError("no macros selected")
         if any(not isinstance(name, str) for name in selected):
             raise SequenceError("macro names must be strings")
-        invalid = set(selected) & (BLOCKED - BATTLES - RECORDED_BATTLES if self.include_battles else BLOCKED)
+        invalid = set(selected) & (BLOCKED - BATTLES if self.include_battles else BLOCKED)
         if invalid:
             raise SequenceError("battle macros are excluded: " + ", ".join(sorted(invalid)))
         # Buff/activation recordings may only be run through an explicit selection.
         if self.selected_names is None and not self.include_battles and set(selected) & ACTIVATIONS:
             raise SequenceError("activations require explicit selection")
-        if set(selected) & BATTLES and not ACTIVATIONS.issubset(selected):
+        if set(selected) & BONUS_BATTLES and not ACTIVATIONS.issubset(selected):
             raise SequenceError("cube and XP cave require scrolls and mount")
         available = set(self.library.names())
         targets = [self.recording_names.get(name, name) for name in selected]
@@ -165,7 +166,8 @@ class MacroSequence:
                 prepared[name] = self._safe_steps(name, raw, self.pixel_wait_seconds)
                 if name in BATTLES:
                     pauses = [i for i, step in enumerate(raw)
-                              if step.get("action") == "wait" and step.get("seconds", 0) >= 120]
+                              if step.get("action") == "wait"
+                              and step.get("seconds", 0) >= BATTLE_WAIT_MINIMUM[name]]
                     if (len(pauses) != 1 or pauses[0] == 0 or pauses[0] == len(raw)-1
                             or raw[pauses[0]-1].get("action") != "click"):
                         raise SequenceError("battle recording must have one long wait immediately after entry")
@@ -244,7 +246,7 @@ class MacroSequence:
                 done = completion.get(name, [])
                 if len(done) >= count:
                     continue
-                if name in BATTLES and any(not completion.get(dep) for dep in ACTIVATIONS):
+                if name in BONUS_BATTLES and any(not completion.get(dep) for dep in ACTIVATIONS):
                     continue
                 if done and cooldown:
                     due = done[-1] + timedelta(seconds=cooldown)
