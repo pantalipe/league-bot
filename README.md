@@ -39,6 +39,22 @@ ative os bônus em uma execução separada, também a partir da tela principal:
 python -m league_bot sequence buffs
 ```
 
+Para o teste acompanhado de **cubo e caverna de XP**, existe uma opção separada:
+
+```powershell
+python -m league_bot sequence check --battles
+python -m league_bot sequence run --battles
+```
+
+Ela inclui scrolls e montaria como dependências dessas duas batalhas. Substitui
+somente a longa espera gravada de cada luta pelo detector da estrela no botão
+`Battle settings`, no canto inferior direito. A estrela precisa desaparecer
+e voltar de forma estável antes dos cliques de saída. Os demais cliques continuam
+gravados. Presença não é executada; dragão, floresta e treinador continuam fora.
+Se a estrela não desaparecer ou não voltar dentro do limite, a execução para e
+salva uma captura de diagnóstico. O retorno da estrela não comprova vitória.
+Esse modo ainda precisa de teste ao vivo acompanhado; `/daily` não foi substituído.
+
 `Ctrl+C` interrompe a sequência. Volte à tela principal antes de qualquer nova
 execução. O arquivo separado `state/macro-sequence.json` guarda as execuções
 terminadas e os timers do ciclo diário (troca às 02:00, UTC−03); isso registra

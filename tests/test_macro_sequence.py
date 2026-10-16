@@ -206,6 +206,51 @@ class MacroSequenceTests(unittest.TestCase):
         self.assertEqual(result["reason"], "cycle_changed")
         self.assertEqual(len(runner.calls), 1)
 
+    def battle_sequence(self, waiter):
+        names = ["ativar_scrolls", "montar_besta", "cubo_de_melhora", "cave_treinoxp"]
+        macros = {name: [{"action": "click", "x": 1, "y": 1}] for name in names}
+        for name in names[2:]:
+            macros[name] += [{"action": "wait", "seconds": 208},
+                             {"action": "click", "x": 2, "y": 2}]
+        runner = FakeRunner()
+        sequence = self.sequence(macros, names, runner, include_battles=True, battle_waiter=waiter)
+        return sequence, runner
+
+    def test_battles_follow_both_buffs_and_wait_before_exit(self):
+        class Waiter:
+            def __init__(inner):
+                inner.calls = 0
+            def wait(inner):
+                inner.calls += 1
+                self.assertTrue(runner.calls[-1][0].endswith("_entry"))
+        waiter = Waiter()
+        sequence, runner = self.battle_sequence(waiter)
+        sequence.run()
+        names = [name for name, steps in runner.calls]
+        self.assertEqual(set(names[:2]), {"ativar_scrolls", "montar_besta"})
+        self.assertEqual(waiter.calls, 2)
+        self.assertTrue(all(not any(step.get("seconds") == 208 for step in steps)
+                            for name, steps in runner.calls))
+        self.assertEqual(names[3], names[2].replace("_entry", "_exit"))
+
+    def test_battle_timeout_never_runs_exit_and_preserves_interrupted_task(self):
+        from league_bot.macro import MacroError
+        class Waiter:
+            def wait(inner):
+                raise MacroError("star did not return")
+        sequence, runner = self.battle_sequence(Waiter())
+        with self.assertRaisesRegex(MacroError, "star did not return"):
+            sequence.run()
+        self.assertFalse(any(name.endswith("_exit") for name, _ in runner.calls))
+        saved = json.loads(self.state.read_text())
+        self.assertIn(saved["in_progress"], {"cubo_de_melhora", "cave_treinoxp"})
+
+    def test_missing_battle_waiter_fails_before_buffs(self):
+        sequence, runner = self.battle_sequence(None)
+        with self.assertRaisesRegex(SequenceError, "waiter"):
+            sequence.run()
+        self.assertEqual(runner.calls, [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -87,8 +87,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     sequence = sub.add_parser("sequence", help="macros sem reconhecimento; comece e termine na tela principal")
     sequence_sub = sequence.add_subparsers(dest="sequence_command", required=True)
-    sequence_sub.add_parser("check", help="valida as gravacoes sem clicar")
-    sequence_sub.add_parser("run", help="executa coletas aleatorias com timers, sem batalhas")
+    for action, description in (("check", "valida as gravacoes sem clicar"),
+                                ("run", "executa coletas aleatorias com timers")):
+        sequence_action = sequence_sub.add_parser(action, help=description)
+        sequence_action.add_argument("--battles", action="store_true",
+                                     help="inclui scrolls, montaria, cubo e cave XP; espera retorno da estrela")
     sequence_sub.add_parser("buffs", help="ativa scrolls e montaria antes das batalhas manuais")
     sequence_sub.add_parser("status", help="mostra execucoes registradas, sem consultar o jogo")
     sequence_sub.add_parser("confirm-interrupted", help="registra como concluida a macro interrompida que voce terminou manualmente")
@@ -325,17 +328,25 @@ def cmd_sequence(settings: Settings, args: argparse.Namespace) -> int:
         print(f"'{name}' registrada como concluida manualmente. Volte a principal antes de sequence run.")
         return 0
     # Check never creates a window backend or captures the desktop.
-    runner = None if args.sequence_command == "check" else MacroRunner(
-        _backend(), settings.window_title, foreground=settings.foreground_input,
+    backend = None if args.sequence_command == "check" else _backend()
+    runner = None if backend is None else MacroRunner(
+        backend, settings.window_title, foreground=settings.foreground_input,
         log=log.info,
     )
     sequence = MacroSequence(
         open_library(settings), runner, state_path,
         selected_names=ACTIVATIONS if args.sequence_command == "buffs" else None,
+        include_battles=getattr(args, "battles", False),
     )
+    if backend is not None and getattr(args, "battles", False):
+        from .slayer.battle_star import StarBattleWaiter
+        sequence.battle_waiter = StarBattleWaiter(
+            backend, settings.window_title, pause=sequence._pause,
+            diagnostics_dir=Path(settings.data_dir) / "diagnostics",
+        )
     if args.sequence_command == "check":
         sequence.preflight()
-        print("Gravacoes validas para sequencia sem reconhecimento.")
+        print("Gravacoes validas para sequencia de macros.")
         return 0
     print("Comece na tela principal, sem menus abertos. Ctrl+C interrompe.")
     try:

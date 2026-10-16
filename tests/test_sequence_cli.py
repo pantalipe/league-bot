@@ -10,6 +10,12 @@ from league_bot.config import Settings
 
 
 class SequenceCliTests(unittest.TestCase):
+    def test_battle_check_preflights_real_macros_without_backend(self):
+        args = cli.build_parser().parse_args(["sequence", "check", "--battles"])
+        with patch.object(cli, "_backend", side_effect=AssertionError("desktop access")), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.cmd_sequence(Settings(), args), 0)
+
     def test_buffs_preflight_uses_real_recordings(self):
         from league_bot.slayer.api import open_library
         from league_bot.slayer.macro_sequence import MacroSequence
