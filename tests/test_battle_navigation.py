@@ -9,6 +9,13 @@ from tests.test_slayer_attendance import png_frame
 ROOT=Path(__file__).resolve().parents[1]
 
 class BattleNavigationTests(unittest.TestCase):
+    def test_updated_character_tabs_have_distinct_navigation_only_recovery(self):
+        for filename,name in [('character_enhance_current.png','character_enhance_current'),
+                              ('character_growth_updated.png','character_current')]:
+            frame=png_frame(ROOT/'tests/fixtures/slayer/battle_navigation'/filename)
+            self.assertEqual(matching_screens(frame,home_step()['screens']),['home_close_'+name])
+        frame=png_frame(ROOT/'tests/fixtures/slayer/battle_navigation/training_diary_current.png')
+        self.assertEqual(matching_screens(frame,home_step()['screens']),['home_close_training_diary_current'])
     def test_updated_forest_uses_common_title_and_has_one_safe_exit(self):
         frame=png_frame(ROOT/'tests/fixtures/slayer/battle_navigation/forest_updated.png')
         self.assertEqual(matching_screens(frame,[profiles()['forest']]),['forest_open'])

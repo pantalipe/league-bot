@@ -31,5 +31,5 @@ class FreeActionBlockTests(unittest.TestCase):
         custom[-1]['x'] = '49%'
         self.assertFalse(use_action_block('cobinar_equip',custom))
         for name in ('pet_guild','free_wpacs','blorb','cubo_de_melhora','loja_guild_free',
-                     'beast_colletct_free','cave_treinoxp','dragao_dormente'):
+                     'beast_colletct_free','cave_treinoxp','dragao_dormente','treinador'):
             self.assertFalse(use_action_block(name,raw))

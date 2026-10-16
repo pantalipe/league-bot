@@ -245,6 +245,39 @@ if IS_WINDOWS:
             code = ctypes.get_last_error()
             return OSError(code, message)
 
+        def drag(self, hwnd: int, x1: int, y1: int, x2: int, y2: int) -> None:
+            """Bounded background swipe, with endpoint validation before mouse-down."""
+            if self.is_minimized(hwnd):
+                self.restore(hwnd)
+                time.sleep(.15)
+            width,height=self.client_size(hwnd)
+            child=self._find_emulator_surface(hwnd)
+            mapped=[]
+            for x,y in [(x1,y1),(x2,y2)]:
+                if not (0<=x<width and 0<=y<height):
+                    raise OSError('drag endpoint is outside the game client area')
+                point=wintypes.POINT(x,y)
+                if not self._u.ClientToScreen(hwnd,ctypes.byref(point)) or not self._u.ScreenToClient(child,ctypes.byref(point)):
+                    raise self._last_win32_error('could not map drag endpoint to emulator')
+                cw,ch=self.client_size(child)
+                if not (0<=point.x<cw and 0<=point.y<ch):
+                    raise OSError('drag endpoint falls outside the emulator surface')
+                mapped.append((point.x,point.y))
+            def packed(x,y):
+                return ((y&0xFFFF)<<16)|(x&0xFFFF)
+            (sx,sy),(ex,ey)=mapped
+            if not self._u.PostMessageW(child,_WM_LBUTTONDOWN,_MK_LBUTTON,packed(sx,sy)):
+                raise self._last_win32_error('could not start emulator drag')
+            try:
+                for index in range(1,13):
+                    time.sleep(.05)
+                    x,y=round(sx+(ex-sx)*index/12),round(sy+(ey-sy)*index/12)
+                    if not self._u.PostMessageW(child,0x0200,_MK_LBUTTON,packed(x,y)):
+                        raise self._last_win32_error('could not move emulator drag')
+            finally:
+                if not self._u.PostMessageW(child,_WM_LBUTTONUP,0,packed(ex,ey)):
+                    raise self._last_win32_error('could not finish emulator drag')
+
         def _find_emulator_surface(self, hwnd: int) -> int:
             matches: List[int] = []
 

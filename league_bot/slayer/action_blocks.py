@@ -8,7 +8,7 @@ from league_bot.macro import load_macro
 # Ads, purchases, quota-limited dungeons, pet, and cube use their dedicated guards.
 FREE_BLOCKS = frozenset({
     'cobinar_equip', 'collect_familiar', 'colheita_arma_alma',
-    'refinamento_skill_completed', 'treinador', 'collect_finished_dailys',
+    'refinamento_skill_completed', 'collect_finished_dailys',
 })
 
 

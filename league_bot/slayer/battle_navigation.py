@@ -5,19 +5,28 @@ from pathlib import Path
 from league_bot.macro import load_macro
 
 def profiles():
-    return json.loads((Path(__file__).parent/'assets/battle-navigation.json').read_text())
+    data=json.loads((Path(__file__).parent/'assets/battle-navigation.json').read_text())
+    data.update(json.loads((Path(__file__).parent/'assets/character-current.json').read_text()))
+    return data
 
 def forest_checkpoint(name):
     return json.loads((Path(__file__).parent/f'assets/{name}.json').read_text(encoding='utf-8'))
 
 def recovery_screens():
     screens=[]
+    expanded=forest_checkpoint('character-expanded-current')
+    expanded.update(name='home_close_character_expanded_current',click={'x':33,'y':784})
+    screens.append(expanded)
+    screens.append(copy.deepcopy(profiles()['latent_power_current']))
+    diary_current=forest_checkpoint('training-diary-current')
+    diary_current.update(name='home_close_training_diary_current',click={'x':34,'y':764})
+    screens.append(diary_current)
     screens.append(json.loads((Path(__file__).parent/'assets/forest-current-recovery.json').read_text(encoding='utf-8')))
     for asset,x,y in [('forest-popup-current',50,777),('forest-multiplier',218,300)]:
         screen=forest_checkpoint(asset)
         screen.update(name='home_close_'+screen['name'],click={'x':x,'y':y})
         screens.append(screen)
-    for key in ('character','character_enhance','character_promotion'):
+    for key in ('character','character_enhance','character_promotion','character_current','character_enhance_current'):
         character=copy.deepcopy(profiles()[key])
         character.update(name='home_close_'+key,click={'x':33,'y':784},
                          max_clicks=2,retry_after_seconds=3)

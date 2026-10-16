@@ -16,6 +16,10 @@ def profiles():
     return json.loads((Path(__file__).parent / 'assets/summons.json').read_text(encoding='utf-8'))
 
 
+def reward_screen():
+    return json.loads((Path(__file__).parent / 'assets/summon-reward.json').read_text(encoding='utf-8'))
+
+
 def read_summon_menu(frame, data=None):
     """Return a specifically recognized summon menu, without reading a quota."""
     data = data or profiles()
@@ -34,6 +38,9 @@ def recovery_screens():
         screen.update(name='home_close_'+screen['name'],click={'x':20,'y':340},
                       max_clicks=2,retry_after_seconds=3)
         screens.append(screen)
+    reward=reward_screen()
+    reward.update(name='home_confirm_summon_reward',max_clicks=1)
+    screens.append(reward)
     return screens
 
 
@@ -47,9 +54,11 @@ def read_summons(frame, data=None):
     if frame is None or (frame.width, frame.height) != tuple(data['frame_size']):
         return {}
     matches = matching_screens(frame, data['screens'])
-    if len(matches) != 1:
+    candidates=[s for s in data['screens'] if s['name'] in matches]
+    kinds={(s.get('task',s['name']),s['counter_surface']) for s in candidates}
+    if len(kinds) != 1:
         return {}
-    screen = next(s for s in data['screens'] if s['name'] == matches[0])
+    screen = candidates[0]
     surface = screen['counter_surface']
     left, top, right, bottom = data['counter_boxes'][surface]
     points = {(x,y) for y in range(top,bottom) for x in range(left,right)
@@ -146,6 +155,8 @@ class SummonRunner(MacroRunner):
         if current_cooldown(frame):
             readings = read_summons(frame)
             record_summons(self.store,readings,self.cycle)
+            if readings and all(used==3 for used in readings.values()):
+                return
             task = next(iter(readings), 'summon_sword')
             quota = readings.get(task)
             detail = f' ({quota}/3)' if quota is not None else ''
@@ -159,6 +170,8 @@ class SummonRunner(MacroRunner):
             self._cooldown(frame)
 
     def _do_screen_flow(self,step,hwnd):
+        if step.get('summon_claim_skill'):
+            return self._claim_skill_once(step,hwnd)
         if step.get('summon_open_popup') == 'summon_accessory':
             hwnd = self._window(hwnd, 'open accessory quota')
             deadline, stable = self._clock() + 8, 0
@@ -182,6 +195,7 @@ class SummonRunner(MacroRunner):
         hwnd=self._window(hwnd,'observe summons')
         deadline=self._clock()+step['timeout']
         previous,stable,menu_stable=None,0,0
+        reopened=False
         while self._clock()<deadline:
             self._check_cancel()
             if self.store and self.store.cycle_id()!=self.cycle:
@@ -199,6 +213,12 @@ class SummonRunner(MacroRunner):
             readings=read_summons(frame) if self._backend.client_size(hwnd)==(434,810) else {}
             current=readings.get(task)
             menu_stable = menu_stable+1 if menu=='summon_equipment' else 0
+            if step.get('summon_reopen_popup') and menu_stable>=2 and not reopened:
+                self._check_cancel()
+                self._backend.click(hwnd,385,379 if task=='summon_sword' else 512,False)
+                reopened=True
+                previous,stable,menu_stable=None,0,0
+                continue
             if step.get('summon_allow_menu') and menu_stable >= 2:
                 return hwnd
             if (menu == 'summon_equipment'
@@ -234,6 +254,52 @@ class SummonRunner(MacroRunner):
                 return hwnd
             self._pause(min(.3,max(0,deadline-self._clock())))
         raise MacroError(f'Invocacoes: {task} sem leitura visual segura; nenhum clique registrado autorizado.')
+
+    def _claim_skill_once(self,step,hwnd):
+        """One video control per invocation; require its observed quota to advance."""
+        hwnd=self._window(hwnd,'observe skill ad')
+        deadline=self._clock()+30
+        previous,stable,clicked=None,0,False
+        before=None
+        button=profiles()['skill_ad_button']
+        reward=reward_screen()
+        reward_confirmed=False
+        reward_stable=0
+        while self._clock()<deadline:
+            self._check_cancel()
+            frame=self._backend.capture(hwnd);self._last_frame=frame
+            if self._backend.client_size(hwnd)!=(434,810):
+                raise MacroError('Geometria das invocacoes mudou.')
+            reward_stable=reward_stable+1 if reward and matching_screens(frame,[reward])==[reward['name']] else 0
+            if reward_stable>=2 and clicked and not reward_confirmed:
+                self._check_cancel()
+                self._backend.click(hwnd,reward['click']['x'],reward['click']['y'],False)
+                reward_confirmed=True
+                previous,stable=None,0
+                self._pause(.3)
+                continue
+            used=read_summons(frame).get('summon_skill')
+            stable=stable+1 if used is not None and used==previous else (1 if used is not None else 0)
+            previous=used
+            if stable>=2:
+                record_summons(self.store,{'summon_skill':used},self.cycle)
+                if not clicked:
+                    if used==3:
+                        return hwnd
+                    if matching_screens(frame,[button]) != [button['name']]:
+                        raise _SummonCooldown(f'Invocacoes: habilidades {used}/3; anuncio indisponivel, coleta pendente.')
+                    before=used
+                    self._check_cancel()
+                    self._backend.click(hwnd,button['click']['x'],button['click']['y'],False)
+                    clicked=True;previous,stable=None,0
+                elif used==before+1:
+                    if used==3:
+                        return hwnd
+                    raise _SummonCooldown(f'Invocacoes: habilidades {used}/3 confirmadas; proximo anuncio pendente.')
+                elif used!=before:
+                    raise MacroError('Contador de habilidades inconsistente apos anuncio.')
+            self._pause(.3)
+        raise MacroError('Habilidades: contador final nao confirmado; nao repetir anuncio.')
 
     def _skip_exhausted_step(self,step):
         return bool(self._exhausted_task and step.get('summon_task')==self._exhausted_task)

@@ -185,6 +185,26 @@ class ShopRunner(MacroRunner):
         self.store.mark_progress(TASK,progress,20,label='free_item_shop',source=source,
             expected_cycle=self.cycle)
 
+    def _position_goods(self,hwnd):
+        """Recover a saved list offset using bounded swipes, never offer clicks."""
+        for attempt in range(7):
+            self._check_cancel()
+            frame=self._backend.capture(hwnd);self._last_frame=frame
+            if self._backend.client_size(hwnd)!=(434,810) or matching_screens(frame,[self.goods])!=['shop_goods']:
+                raise MacroError('Goods mudou durante a rolagem; coleta pendente.')
+            try:
+                read_counters(frame,self.data)
+                return hwnd
+            except MacroError:
+                if attempt==6:
+                    raise
+            drag=getattr(self._backend,'drag',None)
+            if not callable(drag):
+                raise MacroError('Goods fora de posicao; backend sem rolagem.')
+            # Center gap and heading area, away from the right-hand BRL controls.
+            drag(hwnd,220,340,220,650)
+            self._pause(.8)
+
     def _ad_button(self,frame,kind):
         profile=self.data['ad_buttons'].get(kind)
         if profile is None:
@@ -216,11 +236,20 @@ class ShopRunner(MacroRunner):
 
     def _click_batch(self,hwnd,counts,frame):
         """Click only initially recognized free controls, capped by each balance."""
-        buttons={kind:self._ad_button(frame,kind) for kind in ('diamonds','emeralds')}
         clicked={'diamonds':0,'emeralds':0}
         for kind in ('diamonds','emeralds'):
+            if any(clicked.values()):
+                frame=self._backend.capture(hwnd);self._last_frame=frame
+                if matching_screens(frame,[self.goods])!=['shop_goods']:
+                    break
+                try:
+                    observed=read_counters(frame,self.data)
+                except MacroError:
+                    break
+                if observed[kind]!=counts[kind]:
+                    break
             used,total=counts[kind]
-            button=buttons[kind]
+            button=self._ad_button(frame,kind)
             if button is None or total!=10 or not 0<=used<=10:
                 continue
             click=button['click']
@@ -240,6 +269,7 @@ class ShopRunner(MacroRunner):
             if not any(clicked.values()):
                 reason='Loja: anuncio gratuito indisponivel; coleta pendente.'
                 break
+            self._pause(2)
             try:
                 after,final_frame=self._observe(hwnd)
             except MacroError:
@@ -319,7 +349,11 @@ class ShopRunner(MacroRunner):
             max_clicks=2,retry_after_seconds=3)
         hwnd=self._flow(hwnd,'shop_open',[entry,self.shop_open])
         hwnd=self._ensure_goods(hwnd)
-        counts,frame=self._observe(hwnd)
+        try:
+            counts,frame=self._observe(hwnd)
+        except MacroError:
+            hwnd=self._position_goods(hwnd)
+            counts,frame=self._observe(hwnd)
         progress=sum(value[0] for value in counts.values())
         self._record(progress,'visual')
         if progress<20:

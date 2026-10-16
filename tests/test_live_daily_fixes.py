@@ -89,7 +89,7 @@ class LiveDailyFixTests(unittest.TestCase):
         markers=[s for s in prepared if s.get('summon_observe') and not s.get('summon_open_popup')]
         self.assertEqual([s['summon_observe'] for s in markers],
                          ['summon_skill','summon_sword','summon_sword',
-                          'summon_accessory','summon_accessory','summon_skill','summon_skill'])
+                          'summon_accessory','summon_accessory','summon_skill'])
         for marker in markers:
             self.assertFalse(any('click' in screen for screen in marker['screens']))
         self.assertEqual(len([s for s in prepared if s.get('summon_open_popup')]),1)

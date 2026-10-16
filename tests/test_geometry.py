@@ -102,6 +102,13 @@ class GeometryTests(unittest.TestCase):
         adapter.click(7, 50, 100, True)
         self.assertEqual(backend.clicks[-1], (7, 240, 460, True))
 
+    def test_drag_maps_both_endpoints_before_sending_input(self):
+        from unittest.mock import Mock
+        backend=FakeBackend();backend.drag=Mock()
+        adapter=ReferenceBackend(backend,(100,200),(0,0,100,200))
+        adapter.drag(7,25,50,75,150)
+        backend.drag.assert_called_once_with(7,137,275,362,725)
+
     def test_preserve_size_moves_without_resizing(self):
         backend = FakeBackend()
         adapter = ReferenceBackend(backend, (434, 810), (0, 32, 434, 778))

@@ -94,6 +94,11 @@ class SummonReaderTests(unittest.TestCase):
         frame = png_frame(FIXTURES/'weapon-current-cooldown-3of3.png')
         self.assertEqual(read_summons(frame), {'summon_sword': 3})
 
+    def test_current_skill_panel_reads_one_of_three_exactly(self):
+        frame=png_frame(FIXTURES/'skill-current-1of3.png')
+        self.assertEqual(read_summons(frame),{'summon_skill':1})
+        self.assertEqual(read_summons(png_frame(FIXTURES/'skill-current-2of3.png')),{'summon_skill':2})
+
     def test_current_accessory_popup_tracks_ready_and_cooldown_quotas(self):
         for used, cooldown in ((1,False),(2,True)):
             frame = png_frame(FIXTURES/f'accessory-current-{used}of3.png')
@@ -202,6 +207,36 @@ class SummonObserverTests(unittest.TestCase):
         self.assertEqual(status.records[0][0:3], ("summon_skill", 1, 3))
         self.assertEqual(self.backend.clicks(), [])
 
+    def test_skill_video_without_confirmed_increment_is_never_repeated(self):
+        frame=png_frame(FIXTURES/'skill-current-1of3.png')
+        runner=self.make_runner([frame])
+        step=dict(observation_step('summon_skill'),summon_claim_skill=True)
+        with self.assertRaisesRegex(MacroError,'nao repetir anuncio'):
+            runner.run([step])
+        self.assertEqual(self.backend.clicks(),[(378,646,False)])
+
+    def test_exhausted_skill_does_not_click_video(self):
+        runner=self.make_runner([summon_frame('skill',3)])
+        runner.run([dict(observation_step('summon_skill'),summon_claim_skill=True)])
+        self.assertEqual(self.backend.clicks(),[])
+
+    def test_skill_reward_confirms_once_and_records_only_the_observed_increment(self):
+        before=png_frame(FIXTURES/'skill-current-1of3.png')
+        reward=png_frame(FIXTURES/'skill_reward_current.png')
+        after=png_frame(FIXTURES/'skill-current-2of3.png')
+        status=FakeStatus()
+        runner=self.make_runner([before]*2+[reward]*2+[after]*2,status=status)
+        with self.assertRaises(_SummonCooldown):
+            runner.run([dict(observation_step('summon_skill'),summon_claim_skill=True)])
+        self.assertEqual(self.backend.clicks(),[(378,646,False),(218,765,False)])
+        self.assertEqual(status.tasks['summon_skill']['progress'],2)
+
+    def test_cooldown_on_an_exhausted_quota_does_not_defer_other_summons(self):
+        from unittest.mock import patch
+        runner=self.make_runner([summon_frame('accessory',3)])
+        with patch('league_bot.slayer.summons.current_cooldown',return_value=True):
+            runner._cooldown(summon_frame('accessory',3))
+
     def test_exhausted_task_closes_popup_skips_only_its_claims_and_continues(self):
         sword = png_frame(FIXTURES/'weapon-current-cooldown-3of3.png')
         menu = current_summon_menu_frame()
@@ -238,7 +273,8 @@ class SummonObserverTests(unittest.TestCase):
         by_click={(step.get('x'),step.get('y')):step for step in steps if step['action']=='click'}
         self.assertEqual(by_click[('57.26%','56.11%')].get('summon_task'),'summon_sword')
         self.assertEqual(by_click[('51.04%','57.47%')].get('summon_task'),'summon_accessory')
-        self.assertEqual(by_click[('87.21%','79.81%')].get('summon_task'),'summon_skill')
+        self.assertNotIn(('87.21%','79.81%'),by_click)
+        self.assertEqual(len([s for s in steps if s.get('summon_claim_skill')]),1)
         self.assertNotIn('summon_task',by_click[('92.05%','96.85%')])
         # Opening the next popup belongs to navigation, never to the exhausted
         # task's claim block. Otherwise sword 3/3 would also skip Accessories.
@@ -247,7 +283,7 @@ class SummonObserverTests(unittest.TestCase):
         self.assertEqual(accessory_entry, [])
         self.assertEqual(len([s for s in steps if s.get('summon_open_popup') == 'summon_accessory']), 1)
         markers=[s for s in steps if s.get('summon_observe') and not s.get('summon_allow_menu')
-                 and not s.get('summon_open_popup')]
+                 and not s.get('summon_open_popup') and not s.get('summon_claim_skill')]
         self.assertTrue(all(m.get('summon_exhausted_branch') for m in markers))
 
     def test_accessory_entry_opens_once_only_from_recognized_menu(self):

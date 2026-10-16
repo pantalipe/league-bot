@@ -134,7 +134,7 @@ e os demais fluxos mantêm o comportamento de não repetir um clique sem
 transição de tela.
 
 As gravacoes conhecidas de combinacao, familiar, colheita da arma/alma,
-coleta do refinamento, treinador e coleta de missoes executam blocos de acoes:
+coleta do refinamento e coleta de missoes executam blocos de acoes:
 confirmam a entrada e o retorno, preservam os cliques e pausas gravados e nao
 esperam uma cor isolada entre cada clique. O inicio do refinamento e a loja
 da besta usam checkpoints nos paineis correspondentes antes do bloco gratuito.
@@ -145,6 +145,13 @@ Na Floresta, a selecao da ultima linha e apenas navegacao: a dificuldade 120
 e confirmada no popup antes de entrar. No Dragao, o bloco conhecido mantem
 um checkpoint da selecao de multiplicador e da quota gratuita 0/3 antes do X3.
 A loja da guild confirma a oferta Free antes de executar sua coleta gravada.
+Goods pode recuperar a posicao salva da lista com ate seis gestos em segundo
+plano. Confirma Goods antes de cada gesto e os contadores antes de coletar;
+cada tipo de anuncio tem seu controle gratuito conferido antes do lote.
+Invocacoes esgotadas em 3/3 nao bloqueiam as seguintes por causa do timer.
+Habilidades usam um anuncio por tentativa, confirmam a tela de recompensa e
+exigem o incremento visual da quota; o intervalo deixa a coleta pendente.
+O treinador conserva suas verificacoes e seu salto automatico apos falha.
 
 As macros são gravações de cliques, esperas e condições visuais. Uma gravação precisa ser validada ao vivo antes de entrar na seleção executada: confira a tela inicial, as telas intermediárias, a tela final, os tempos de carregamento, o layout da janela, o idioma e os custos em diamantes. Teste uma macro por vez no PC de destino e use `/cancel` ou o cancelamento de macro disponível no host se o fluxo sair do esperado.
 

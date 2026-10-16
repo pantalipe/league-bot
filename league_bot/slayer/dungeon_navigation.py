@@ -64,6 +64,10 @@ def prepare_summons(steps):
                   23:'summon_accessory',27:'summon_skill',32:'summon_skill'}
     suffix=[]
     for index,step in enumerate(steps[4:],4):
+        if index == 24:
+            suffix.append(dict(observation_step('summon_skill'),summon_claim_skill=True))
+        if 24 <= index <= 32:
+            continue
         if index == 13:
             popup = observation_step('summon_accessory', exhausted_branch=True)
             popup['summon_allow_transition'] = True
@@ -80,6 +84,9 @@ def prepare_summons(steps):
             prepared['summon_task']=task
         suffix.append(prepared)
         if index in observations:
-            suffix.append(observation_step(observations[index], exhausted_branch=True))
+            observation=observation_step(observations[index], exhausted_branch=True)
+            if index in {12,23}:
+                observation.update(summon_reopen_popup=True,summon_allow_transition=True,timeout=12)
+            suffix.append(observation)
     return [copy.deepcopy(steps[0]),flow,select,
             observation_step('summon_skill', allow_menu=True),*suffix]

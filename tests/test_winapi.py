@@ -83,6 +83,24 @@ class Win32InputMockTests(unittest.TestCase):
             self.assert_not_called(self.u.SetForegroundWindow)
             self.assert_not_called(self.u.SetCursorPos)
 
+    def test_drag_maps_both_endpoints_without_moving_cursor_and_releases_button(self):
+        with self.enable_windows_symbols(),patch.object(winapi.time,'sleep'):
+            self.backend.drag(self.ROOT,30,40,90,100)
+        calls=self.u.PostMessageW.call_args_list
+        self.assertEqual(calls[0].args,(self.CHILD,winapi._WM_LBUTTONDOWN,winapi._MK_LBUTTON,(60<<16)|40))
+        self.assertEqual(calls[-1].args,(self.CHILD,winapi._WM_LBUTTONUP,0,(120<<16)|100))
+        self.u.SetCursorPos.assert_not_called();self.u.SetForegroundWindow.assert_not_called()
+
+    def test_invalid_drag_endpoint_never_presses_and_move_failure_releases(self):
+        with self.enable_windows_symbols(),patch.object(winapi.time,'sleep'):
+            with self.assertRaises(OSError):
+                self.backend.drag(self.ROOT,30,40,499,399)
+            self.u.PostMessageW.assert_not_called()
+            self.u.PostMessageW.side_effect=[1,0,1]
+            with self.assertRaises(OSError):
+                self.backend.drag(self.ROOT,30,40,90,100)
+            self.assertEqual(self.u.PostMessageW.call_args.args[1],winapi._WM_LBUTTONUP)
+
     def test_minimized_background_click_restores_before_measuring_and_posting(self):
         with self.enable_windows_symbols(), patch.object(winapi.time, "sleep") as sleep:
             self.backend.is_minimized.side_effect = [True, False]

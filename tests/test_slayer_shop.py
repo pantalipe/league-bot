@@ -25,6 +25,32 @@ FIXTURES = ROOT / 'tests' / 'fixtures' / 'slayer' / 'shop'
 
 @unittest.skipUnless(la.available(), 'Slayer compatibility dependencies unavailable')
 class ShopScreenTests(unittest.TestCase):
+    def test_current_vertical_free_rows_use_existing_video_controls(self):
+        frame=png_frame(FIXTURES/'goods-current-0of10.png')
+        self.assertEqual(read_counters(frame),{'diamonds':(0,10),'emeralds':(0,10)})
+        runner=ShopRunner(object(),'Slayer Legend')
+        self.assertEqual(runner._ad_button(frame,'diamonds')['click'],{'x':356,'y':395})
+        self.assertEqual(runner._ad_button(frame,'emeralds')['click'],{'x':356,'y':467})
+        after=png_frame(FIXTURES/'goods-current-diamonds-10.png')
+        self.assertEqual(read_counters(after),{'diamonds':(10,10),'emeralds':(0,10)})
+
+    def test_position_recovery_swipes_only_until_counters_return(self):
+        from league_bot.imaging import Frame
+        frame=png_frame(FIXTURES/'recording_claim_before_d0_e0.png')
+        pixels=bytearray(frame.bgr)
+        data=profiles()
+        for kind,box in data['counter_boxes'].items():
+            for left,top,right,bottom in data.get('counter_box_variants',{}).get(kind,[box]):
+                for y in range(top,bottom):
+                    start=(809-y)*frame.row_size+left*3
+                    pixels[start:start+(right-left)*3]=bytes((right-left)*3)
+        unknown=Frame(434,810,bytes(pixels))
+        backend=mock.Mock();backend.client_size.return_value=(434,810)
+        backend.capture.side_effect=[unknown,frame]
+        runner=ShopRunner(backend,'Slayer Legend');runner._pause=mock.Mock()
+        self.assertEqual(runner._position_goods(7),7)
+        backend.drag.assert_called_once_with(7,220,340,220,650)
+        backend.click.assert_not_called()
     def test_shop_summon_and_goods_are_recognized_separately(self):
         screens = recovery_screens()
         self.assertEqual(len(screens), 1)
@@ -157,13 +183,20 @@ class ShopScreenTests(unittest.TestCase):
         for frame, positions in (
             (png_frame(FIXTURES / 'recording_claim_before_d0_e0.png'),
              [(343, 375)] * 2 + [(353, 446)]),
-            (png_frame(FIXTURES / 'new_ad_buttons_shifted_masked.png'),
+            (png_frame(FIXTURES / 'goods-current-diamonds-10.png'),
              [(356, 395)] * 2 + [(356, 467)]),
         ):
             backend = mock.Mock()
+            backend.capture.return_value=frame
             runner = ShopRunner(backend, 'Slayer Legend')
             runner._check_cancel = mock.Mock()
-            clicked = runner._click_batch(7, counts, frame)
+            # Isolate the batch bound from the caller's calibrated Goods entry.
+            real_matching=matching_screens
+            def calibrated_goods(current,screens):
+                return ['shop_goods'] if screens==[runner.goods] else real_matching(current,screens)
+            with mock.patch('league_bot.slayer.shop.read_counters',return_value=counts), mock.patch(
+                    'league_bot.slayer.shop.matching_screens',side_effect=calibrated_goods):
+                clicked = runner._click_batch(7, counts, frame)
             self.assertEqual(clicked, {'diamonds': 2, 'emeralds': 1})
             self.assertEqual([(call.args[1], call.args[2])
                               for call in backend.click.call_args_list], positions)

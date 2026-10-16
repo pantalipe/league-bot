@@ -47,6 +47,9 @@ class Backend(Protocol):
     def click(self, hwnd: int, x: int, y: int, foreground: bool) -> None:
         """Left click at client coordinates (real mouse when ``foreground``)."""
 
+    def drag(self, hwnd: int, x1: int, y1: int, x2: int, y2: int) -> None:
+        """Background swipe between validated client coordinates."""
+
     def minimize(self, hwnd: int) -> None: ...
 
     def restore(self, hwnd: int) -> None: ...

@@ -170,6 +170,16 @@ class ReferenceBackend:
             raise GeometryError(str(exc)) from exc
         self.backend.click(hwnd, *mapped, foreground)
 
+    def drag(self, hwnd, x1, y1, x2, y2):
+        target_size=self.backend.client_size(hwnd)
+        try:
+            viewport=self._live_viewport(hwnd,target_size)
+            start=map_point(x1,y1,self.reference_size,target_size,self.reference_viewport,viewport)
+            end=map_point(x2,y2,self.reference_size,target_size,self.reference_viewport,viewport)
+        except ValueError as exc:
+            raise GeometryError(str(exc)) from exc
+        self.backend.drag(hwnd,*start,*end)
+
     def poll_input(self, hwnd, stop_vk):
         sample = self.backend.poll_input(hwnd, stop_vk)
         size = self.backend.client_size(hwnd)
