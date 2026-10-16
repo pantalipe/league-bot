@@ -251,6 +251,40 @@ class MacroSequenceTests(unittest.TestCase):
             sequence.run()
         self.assertEqual(runner.calls, [])
 
+    def test_recording_alias_uses_new_steps_under_logical_task_name(self):
+        runner = FakeRunner()
+        sequence = self.sequence(
+            {"new_recording": [{"action": "click", "x": 15, "y": 25}]},
+            ["task"], runner, recording_names={"task": "new_recording"},
+        )
+        result = sequence.run()
+        self.assertEqual(runner.calls[0][0], "task")
+        self.assertEqual(runner.calls[0][1][-1]["x"], 15)
+        self.assertIn("task", result["executions"])
+        self.assertNotIn("new_recording", result["executions"])
+
+    def test_missing_alias_never_falls_back_to_old_recording(self):
+        sequence = self.sequence({"task": [{"action": "wait", "seconds": 1}]}, ["task"],
+                                 recording_names={"task": "missing_new_recording"})
+        with self.assertRaisesRegex(SequenceError, "missing_new_recording"):
+            sequence.preflight()
+
+    def test_recorded_dragon_retains_fixed_wait_without_star_detector(self):
+        runner = FakeRunner()
+        sequence = self.sequence(
+            {"dragon_new": [{"action": "wait", "seconds": 51.5}]},
+            ["dragao_dormente"], runner, include_battles=True,
+            recording_names={"dragao_dormente": "dragon_new"},
+        )
+        sequence.run()
+        self.assertEqual(runner.calls[0][1], [{"action": "wait", "seconds": 51.5}])
+
+    def test_trainer_stays_blocked_with_battles_enabled(self):
+        sequence = self.sequence({"treinador": [{"action": "wait", "seconds": 1}]},
+                                 ["treinador"], include_battles=True)
+        with self.assertRaisesRegex(SequenceError, "treinador"):
+            sequence.preflight()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,5 @@
 import contextlib
+import json
 import io
 import tempfile
 import unittest
@@ -10,6 +11,20 @@ from league_bot.config import Settings
 
 
 class SequenceCliTests(unittest.TestCase):
+    def test_check_uses_local_plan_and_new_recording(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            macros = root / "macros"
+            macros.mkdir()
+            (macros / "new.json").write_text(json.dumps({"steps": [{"action": "wait", "seconds": 1}]}))
+            (root / "macro-sequence-plan.json").write_text(json.dumps({
+                "recordings": {"task": "new"}, "macros": ["task"],
+            }))
+            args = cli.build_parser().parse_args(["sequence", "check"])
+            with patch.object(cli, "_backend", side_effect=AssertionError("desktop access")), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.cmd_sequence(Settings(data_dir=root, macros_dir=macros), args), 0)
+
     def test_battle_check_preflights_real_macros_without_backend(self):
         args = cli.build_parser().parse_args(["sequence", "check", "--battles"])
         with patch.object(cli, "_backend", side_effect=AssertionError("desktop access")), \

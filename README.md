@@ -50,10 +50,18 @@ Ela inclui scrolls e montaria como dependências dessas duas batalhas. Substitui
 somente a longa espera gravada de cada luta pelo detector da estrela no botão
 `Battle settings`, no canto inferior direito. A estrela precisa desaparecer
 e voltar de forma estável antes dos cliques de saída. Os demais cliques continuam
-gravados. Presença não é executada; dragão, floresta e treinador continuam fora.
+gravados. Dragão e floresta também podem participar com suas esperas gravadas,
+sem detector de estrela. Presença e treinador ficam fora.
 Se a estrela não desaparecer ou não voltar dentro do limite, a execução para e
 salva uma captura de diagnóstico. O retorno da estrela não comprova vitória.
 Esse modo ainda precisa de teste ao vivo acompanhado; `/daily` não foi substituído.
+
+Uma instalação pode usar `state/macro-sequence-plan.json` para vincular tarefas
+às novas gravações, sem renomear nem substituir os arquivos originais. `recordings`
+mapeia o nome lógico da tarefa ao nome gravado; `macros` e `macros_with_battles`
+definem a seleção de cada modo. Dependências e timers continuam associados à
+tarefa lógica. `sequence check --battles` valida a seleção configurada inteira
+sem consultar a janela do jogo.
 
 `Ctrl+C` interrompe a sequência. Volte à tela principal antes de qualquer nova
 execução. O arquivo separado `state/macro-sequence.json` guarda as execuções

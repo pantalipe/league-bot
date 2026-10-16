@@ -318,6 +318,10 @@ def cmd_sequence(settings: Settings, args: argparse.Namespace) -> int:
     from .slayer.plan import ACTIVATIONS
 
     state_path = Path(settings.data_dir) / "macro-sequence.json"
+    plan_path = Path(settings.data_dir) / "macro-sequence-plan.json"
+    plan = json.loads(plan_path.read_text(encoding="utf-8")) if plan_path.exists() else {}
+    if not isinstance(plan, dict):
+        raise ValueError("macro-sequence-plan.json deve conter um objeto")
     if args.sequence_command == "status":
         print(state_path.read_text(encoding="utf-8") if state_path.exists()
               else "Nenhuma execucao registrada neste modo.")
@@ -335,8 +339,10 @@ def cmd_sequence(settings: Settings, args: argparse.Namespace) -> int:
     )
     sequence = MacroSequence(
         open_library(settings), runner, state_path,
-        selected_names=ACTIVATIONS if args.sequence_command == "buffs" else None,
+        selected_names=ACTIVATIONS if args.sequence_command == "buffs" else plan.get(
+            "macros_with_battles" if getattr(args, "battles", False) else "macros"),
         include_battles=getattr(args, "battles", False),
+        recording_names=plan.get("recordings"),
     )
     if backend is not None and getattr(args, "battles", False):
         from .slayer.battle_star import StarBattleWaiter

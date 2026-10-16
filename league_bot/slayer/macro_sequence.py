@@ -23,6 +23,7 @@ BLOCKED = frozenset({
     "floresta_circulacao", "treinador",
 })
 BATTLES = frozenset({"cubo_de_melhora", "cave_treinoxp"})
+RECORDED_BATTLES = frozenset({"dragao_dormente", "floresta_circulacao"})
 ACTIVATIONS = frozenset({"ativar_scrolls", "montar_besta"})
 FINISHED_DEPENDENCIES = frozenset(FINISHED_DAILY_DEPENDENCIES)
 ALLOWED_ACTIONS = frozenset({
@@ -62,12 +63,14 @@ class MacroSequence:
         selected_names: Optional[Iterable[str]] = None,
         include_battles: bool = False,
         battle_waiter=None,
+        recording_names=None,
     ) -> None:
         self.library = library
         self.runner = runner
         self.include_battles = include_battles
         self.battle_waiter = battle_waiter
         self._battle_splits = {}
+        self.recording_names = dict(recording_names or {})
         self.state_path = Path(state_path)
         self.rng = rng or random.Random()
         self.clock = clock
@@ -102,13 +105,14 @@ class MacroSequence:
         selected = list(self.selected_names) if self.selected_names is not None else [
             name for name in MACRO_CATALOG
             if ((name not in BLOCKED and name not in ACTIVATIONS)
-                or (self.include_battles and (name in BATTLES or name in ACTIVATIONS)))
+                or (self.include_battles and (name in BATTLES or name in ACTIVATIONS
+                                             or name in RECORDED_BATTLES)))
         ]
         if not selected:
             raise SequenceError("no macros selected")
         if any(not isinstance(name, str) for name in selected):
             raise SequenceError("macro names must be strings")
-        invalid = set(selected) & (BLOCKED - BATTLES if self.include_battles else BLOCKED)
+        invalid = set(selected) & (BLOCKED - BATTLES - RECORDED_BATTLES if self.include_battles else BLOCKED)
         if invalid:
             raise SequenceError("battle macros are excluded: " + ", ".join(sorted(invalid)))
         # Buff/activation recordings may only be run through an explicit selection.
@@ -117,7 +121,10 @@ class MacroSequence:
         if set(selected) & BATTLES and not ACTIVATIONS.issubset(selected):
             raise SequenceError("cube and XP cave require scrolls and mount")
         available = set(self.library.names())
-        missing = sorted(set(selected) - available)
+        targets = [self.recording_names.get(name, name) for name in selected]
+        if any(not isinstance(name, str) for name in targets):
+            raise SequenceError("recording names must be strings")
+        missing = sorted(set(targets) - available)
         if missing:
             raise SequenceError("selected macros are missing: " + ", ".join(missing))
         if FINISHED_DAILIES in selected:
@@ -154,7 +161,7 @@ class MacroSequence:
         self._battle_splits = {}
         for name in self._selected():
             try:
-                raw = self.library.load_steps(name)
+                raw = self.library.load_steps(self.recording_names.get(name, name))
                 prepared[name] = self._safe_steps(name, raw, self.pixel_wait_seconds)
                 if name in BATTLES:
                     pauses = [i for i, step in enumerate(raw)
