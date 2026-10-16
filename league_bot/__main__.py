@@ -85,6 +85,14 @@ def build_parser() -> argparse.ArgumentParser:
     daily_set = daily_sub.add_parser("set", help="atualiza uma tarefa pelo nome")
     daily_set.add_argument("values", nargs="+")
 
+    sequence = sub.add_parser("sequence", help="macros sem reconhecimento; comece e termine na tela principal")
+    sequence_sub = sequence.add_subparsers(dest="sequence_command", required=True)
+    sequence_sub.add_parser("check", help="valida as gravacoes sem clicar")
+    sequence_sub.add_parser("run", help="executa coletas aleatorias com timers, sem batalhas")
+    sequence_sub.add_parser("buffs", help="ativa scrolls e montaria antes das batalhas manuais")
+    sequence_sub.add_parser("status", help="mostra execucoes registradas, sem consultar o jogo")
+    sequence_sub.add_parser("confirm-interrupted", help="registra como concluida a macro interrompida que voce terminou manualmente")
+
     calibrate = sub.add_parser("calibrate", help="calibra reconhecimento de telas sem clicar no jogo")
     calibration_sub = calibrate.add_subparsers(dest="calibration_command", required=True)
     from .calibration_global_cli import add_parser as add_global_calibration_parser
@@ -300,6 +308,46 @@ def cmd_daily(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sequence(settings: Settings, args: argparse.Namespace) -> int:
+    import json
+    from .macro import MacroRunner
+    from .slayer.macro_sequence import MacroSequence
+    from .slayer.plan import ACTIVATIONS
+
+    state_path = Path(settings.data_dir) / "macro-sequence.json"
+    if args.sequence_command == "status":
+        print(state_path.read_text(encoding="utf-8") if state_path.exists()
+              else "Nenhuma execucao registrada neste modo.")
+        return 0
+    if args.sequence_command == "confirm-interrupted":
+        sequence = MacroSequence(open_library(settings), None, state_path)
+        name = sequence.acknowledge_interruption()
+        print(f"'{name}' registrada como concluida manualmente. Volte a principal antes de sequence run.")
+        return 0
+    # Check never creates a window backend or captures the desktop.
+    runner = None if args.sequence_command == "check" else MacroRunner(
+        _backend(), settings.window_title, foreground=settings.foreground_input,
+        log=log.info,
+    )
+    sequence = MacroSequence(
+        open_library(settings), runner, state_path,
+        selected_names=ACTIVATIONS if args.sequence_command == "buffs" else None,
+    )
+    if args.sequence_command == "check":
+        sequence.preflight()
+        print("Gravacoes validas para sequencia sem reconhecimento.")
+        return 0
+    print("Comece na tela principal, sem menus abertos. Ctrl+C interrompe.")
+    try:
+        result = sequence.run(on_event=print)
+    except KeyboardInterrupt:
+        sequence.cancel()
+        print("\nSequencia interrompida. Volte manualmente a tela principal.")
+        return 1
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result["completed"] else 1
+
+
 def run(args: argparse.Namespace) -> int:
     command = args.command or "run"
     try:
@@ -370,6 +418,8 @@ def run(args: argparse.Namespace) -> int:
             return 0
         if command == "daily":
             return cmd_daily(settings, args)
+        if command == "sequence":
+            return cmd_sequence(settings, args)
     except KeyboardInterrupt:
         print("\nEncerrado.")
         return 0

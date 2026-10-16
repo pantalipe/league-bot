@@ -8,6 +8,49 @@ Você pode usar o bot pronto ou incorporar a biblioteca `league_bot` ao seu bot 
 
 ## Escolha como usar
 
+### Modo simples: somente macros
+
+Com o jogo aberto na **tela principal, sem menus ou avisos abertos**, execute:
+
+```powershell
+python -m league_bot sequence check
+python -m league_bot sequence run
+```
+
+Esse modo reaproveita as gravações locais (ou as compartilhadas), remove as
+esperas por cores durante a execução e usa pausas fixas no lugar delas. Não
+reconhece telas, não abre o jogo e não tenta recuperar a navegação. Cada gravação
+deve começar e terminar na principal. Não altere as abas salvas ou o tamanho da
+janela em relação à gravação; o executor repete os cliques como foram gravados.
+As gravações originais são preservadas.
+
+As coletas disponíveis são sorteadas a cada etapa. Blorb executa até três vezes,
+com pelo menos cinco minutos entre execuções; summons executa até três vezes,
+com pelo menos dez minutos. Outras tarefas ocupam esses intervalos. A coleta do
+refinamento espera dez minutos após seu início. Combinação de equipamentos e
+summons precedem a coleta das quests, que fica por último. As esperas gravadas
+são mantidas, com uma pausa adicional aleatória de 0,15 a 0,65 segundo antes de
+cada clique.
+
+Batalhas, cubo e caverna de XP ficam manuais. Antes de começar essas batalhas,
+ative os bônus em uma execução separada, também a partir da tela principal:
+
+```powershell
+python -m league_bot sequence buffs
+```
+
+`Ctrl+C` interrompe a sequência. Volte à tela principal antes de qualquer nova
+execução. O arquivo separado `state/macro-sequence.json` guarda as execuções
+terminadas e os timers do ciclo diário (troca às 02:00, UTC−03); isso registra
+execução da macro, sem confirmar recompensas no jogo. Consulte com
+`python -m league_bot sequence status`. O modo antigo `daily` e as integrações
+Telegram continuam separados; use `sequence` para esse modo simples.
+
+Se interromper no meio de uma macro, termine essa tarefa manualmente e volte à
+principal. Registre essa execução com
+`python -m league_bot sequence confirm-interrupted` antes de retomar com
+`sequence run`. A macro parcial não é repetida automaticamente.
+
 | Você quer… | Siga… |
 |---|---|
 | Criar um bot dedicado ao Slayer Legend | [Instalação do bot próprio](#instalação-do-bot-próprio) |
