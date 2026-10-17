@@ -53,6 +53,14 @@ class CalibratedStartupTests(unittest.TestCase):
         self.assertLess(backend.calls.index(('move_resize', None, None, 438, 814)),
                         backend.calls.index(('click', 217, 405, False)))
 
+    def test_bright_save_title_from_timeout_confirms_once(self):
+        backend = self.replay(['tap_reference', 'tap_background', 'tap_clicked',
+                               'save_title_bright_failure', 'save_title_bright_failure',
+                               'save_title_bright_failure', 'save_title_bright_failure',
+                               'post_login', 'main_reference'])
+        self.assertEqual(backend.clicks(), [(217, 405, False), (138, 655, False)])
+        self.assertTrue(backend.minimized)
+
     def test_save_can_be_absent_and_an_already_open_main_needs_no_clicks(self):
         backend = self.replay(['tap_reference', 'tap_background', 'tap_clicked', 'post_login', 'main_reference'])
         self.assertEqual(backend.clicks(), [(217, 405, False)])
