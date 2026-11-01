@@ -66,6 +66,7 @@ class MacroSequence:
         include_battles: bool = False,
         battle_waiter=None,
         recording_names=None,
+        home_recovery=None,
     ) -> None:
         self.library = library
         self.runner = runner
@@ -73,6 +74,7 @@ class MacroSequence:
         self.battle_waiter = battle_waiter
         self._battle_splits = {}
         self.recording_names = dict(recording_names or {})
+        self.home_recovery = home_recovery
         self.state_path = Path(state_path)
         self.rng = rng or random.Random()
         self.clock = clock
@@ -232,6 +234,10 @@ class MacroSequence:
                 except (TypeError, ValueError):
                     raise SequenceError(f"invalid completion timestamps for {name}") from None
         names = list(prepared)
+        if self.home_recovery is not None and any(
+                len(completion.get(name, [])) < self._required(name)[0] for name in names):
+            emit("Conferindo retorno a principal antes da sequencia")
+            self.home_recovery()
         while True:
             if self._cancelled.is_set():
                 raise MacroCancelled("sequence cancelled")
@@ -294,6 +300,9 @@ class MacroSequence:
                     self.runner.run(self._delayed(prepared[name][split+1:]), name=name + "_exit")
                 else:
                     self.runner.run(self._delayed(prepared[name]), name=name)
+                if self.home_recovery is not None:
+                    emit(f"Conferindo retorno a principal: {name}")
+                    self.home_recovery()
             except BaseException:
                 self._write_state(state)
                 raise

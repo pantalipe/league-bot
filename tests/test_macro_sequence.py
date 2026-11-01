@@ -300,6 +300,31 @@ class MacroSequenceTests(unittest.TestCase):
         with self.assertRaisesRegex(SequenceError, "treinador"):
             sequence.preflight()
 
+    def test_recovery_confirms_home_before_and_after_macro_without_replaying(self):
+        runner = FakeRunner()
+        observations = []
+        sequence = self.sequence({"task": [{"action": "click", "x": 1, "y": 1}]},
+                                 ["task"], runner, home_recovery=lambda: observations.append(len(runner.calls)))
+        sequence.run()
+        self.assertEqual(observations, [0, 1])
+        sequence.run()
+        self.assertEqual(observations, [0, 1])
+
+    def test_failed_return_does_not_start_next_task_or_mark_current_completed(self):
+        from league_bot.macro import MacroError
+        runner = FakeRunner()
+        def recover():
+            if runner.calls:
+                raise MacroError("unknown navigation screen")
+        macros = {n: [{"action": "click", "x": 1, "y": 1}] for n in ["a", "b"]}
+        sequence = self.sequence(macros, ["a", "b"], runner, home_recovery=recover)
+        with self.assertRaisesRegex(MacroError, "unknown navigation screen"):
+            sequence.run()
+        self.assertEqual(len(runner.calls), 1)
+        saved = json.loads(self.state.read_text())
+        self.assertEqual(saved["executions"], {})
+        self.assertIn(saved["in_progress"], macros)
+
 
 if __name__ == "__main__":
     unittest.main()

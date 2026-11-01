@@ -11,6 +11,16 @@ from league_bot.config import Settings
 
 
 class SequenceCliTests(unittest.TestCase):
+    def test_home_command_uses_navigation_without_daily_execution(self):
+        for values, pet_reward in ((["sequence", "home"], False),
+                                    (["sequence", "home", "--pet-reward"], True)):
+            args = cli.build_parser().parse_args(values)
+            with patch.object(cli, "_backend", return_value=object()), \
+                    patch("league_bot.slayer.navigation_recovery.recover_home") as recover, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.cmd_sequence(Settings(), args), 0)
+            self.assertEqual(recover.call_args.kwargs, {"include_pet_reward": pet_reward})
+
     def test_check_uses_local_plan_and_new_recording(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

@@ -92,9 +92,13 @@ def build_parser() -> argparse.ArgumentParser:
         sequence_action = sequence_sub.add_parser(action, help=description)
         sequence_action.add_argument("--battles", action="store_true",
                                      help="inclui scrolls, montaria, cubo, cave XP, dragao e floresta; espera retorno da estrela")
+        sequence_action.add_argument("--recover", action="store_true",
+                                     help="confere a principal e tenta fechar paineis conhecidos entre macros")
     sequence_sub.add_parser("buffs", help="ativa scrolls e montaria antes das batalhas manuais")
     sequence_sub.add_parser("status", help="mostra execucoes registradas, sem consultar o jogo")
     sequence_sub.add_parser("confirm-interrupted", help="registra como concluida a macro interrompida que voce terminou manualmente")
+    recovery = sequence_sub.add_parser("home", help="tenta voltar a principal por controles reconhecidos de navegacao")
+    recovery.add_argument("--pet-reward", action="store_true", help="permite fechar a confirmacao de recompensa do pet ja obtida")
 
     calibrate = sub.add_parser("calibrate", help="calibra reconhecimento de telas sem clicar no jogo")
     calibration_sub = calibrate.add_subparsers(dest="calibration_command", required=True)
@@ -331,6 +335,13 @@ def cmd_sequence(settings: Settings, args: argparse.Namespace) -> int:
         name = sequence.acknowledge_interruption()
         print(f"'{name}' registrada como concluida manualmente. Volte a principal antes de sequence run.")
         return 0
+    if args.sequence_command == "home":
+        from .slayer.navigation_recovery import recover_home
+        runner = MacroRunner(_backend(), settings.window_title, foreground=settings.foreground_input, log=log.info)
+        runner.diagnostics_dir = Path(settings.data_dir) / "diagnostics"
+        recover_home(runner, include_pet_reward=args.pet_reward)
+        print("Tela principal confirmada.")
+        return 0
     # Check never creates a window backend or captures the desktop.
     backend = None if args.sequence_command == "check" else _backend()
     runner = None if backend is None else MacroRunner(
@@ -350,6 +361,10 @@ def cmd_sequence(settings: Settings, args: argparse.Namespace) -> int:
             backend, settings.window_title, pause=sequence._pause,
             diagnostics_dir=Path(settings.data_dir) / "diagnostics",
         )
+    if backend is not None and getattr(args, "recover", False):
+        from .slayer.navigation_recovery import recover_home
+        runner.diagnostics_dir = Path(settings.data_dir) / "diagnostics"
+        sequence.home_recovery = lambda: recover_home(runner, include_pet_reward=True)
     if args.sequence_command == "check":
         sequence.preflight()
         print("Gravacoes validas para sequencia de macros.")

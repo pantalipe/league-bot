@@ -63,6 +63,21 @@ definem a seleção de cada modo. Dependências e timers continuam associados à
 tarefa lógica. `sequence check --battles` valida a seleção configurada inteira
 sem consultar a janela do jogo.
 
+Para tentar voltar à principal usando os controles de saída reconhecidos:
+
+```powershell
+python -m league_bot sequence home
+python -m league_bot sequence run --battles --recover
+```
+
+`home` fecha painéis conhecidos e confirma a principal, com limite de 30 segundos.
+Uma tela desconhecida interrompe a tentativa sem cliques por aproximação. Não
+entra em batalhas, faz compras nem coleta presença. `--recover` faz essa
+conferência antes da sequência e após cada macro; também permite fechar o popup
+de recompensa já obtida do pet. O comando isolado exige `sequence home
+--pet-reward` para permitir essa confirmação. Falha de retorno interrompe a
+sequência e conserva a tarefa como parcial, sem repeti-la automaticamente.
+
 `Ctrl+C` interrompe a sequência. Volte à tela principal antes de qualquer nova
 execução. O arquivo separado `state/macro-sequence.json` guarda as execuções
 terminadas e os timers do ciclo diário (troca às 02:00, UTC−03); isso registra
